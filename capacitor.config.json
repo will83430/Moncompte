@@ -1,0 +1,8 @@
+{
+  "appId": "com.moncompte.app",
+  "appName": "MonCompte",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

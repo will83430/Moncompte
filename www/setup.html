@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MonCompte — Import initial</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .box { background: white; border-radius: 16px; padding: 32px; max-width: 380px; width: 90%; box-shadow: 0 4px 24px #0002; text-align: center; }
+    h2 { color: #00796b; margin-bottom: 8px; }
+    p { color: #555; font-size: 14px; margin-bottom: 24px; }
+    input[type=password] { width: 100%; padding: 14px; font-size: 24px; letter-spacing: 12px; text-align: center; border: 2px solid #ddd; border-radius: 10px; margin-bottom: 16px; box-sizing: border-box; }
+    .tab-btns { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 10px; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; }
+    .tab-btn.active { border-color: #00796b; color: #00796b; background: #e8f5f3; }
+    .file-zone { border: 2px dashed #ddd; border-radius: 10px; padding: 20px; margin-bottom: 16px; cursor: pointer; color: #aaa; font-size: 13px; }
+    .file-zone.selected { border-color: #00796b; color: #00796b; }
+    button.main { width: 100%; padding: 14px; background: #00796b; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    button.main:hover { background: #005f56; }
+    #status { margin-top: 16px; font-size: 14px; color: #555; min-height: 20px; }
+    .ok { color: #00796b; font-weight: 600; }
+    .err { color: #e53935; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div class="box">
+  <h2>MonCompte</h2>
+  <p>Configure ton application</p>
+
+  <div class="tab-btns">
+    <button class="tab-btn active" id="tab-export" onclick="switchTab('export')">Mes données (export)</button>
+    <button class="tab-btn" id="tab-history" onclick="switchTab('history')">Historique CIC</button>
+  </div>
+
+  <div id="zone-export">
+    <div class="file-zone" id="file-zone" onclick="document.getElementById('file-input').click()">
+      Appuie ici pour choisir le fichier<br><strong>moncompte_export_*.json</strong>
+    </div>
+    <input type="file" id="file-input" accept=".json" style="display:none" onchange="onFileSelected(this)">
+  </div>
+
+  <div id="zone-history" style="display:none">
+    <p style="margin:0 0 12px;font-size:13px;color:#777;">Importe l'historique CIC initial (2 169 transactions)</p>
+  </div>
+
+  <input type="password" id="pin" maxlength="4" inputmode="numeric" placeholder="PIN (4 chiffres)" autofocus>
+  <button class="main" onclick="doImport()">Importer</button>
+  <div id="status"></div>
+</div>
+
+<script src="./js/storage.js"></script>
+<script>
+let currentTab = 'export';
+let selectedFile = null;
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-export').classList.toggle('active', tab === 'export');
+  document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('zone-export').style.display = tab === 'export' ? '' : 'none';
+  document.getElementById('zone-history').style.display = tab === 'history' ? '' : 'none';
+}
+
+function onFileSelected(input) {
+  if (input.files[0]) {
+    selectedFile = input.files[0];
+    const zone = document.getElementById('file-zone');
+    zone.textContent = '✓ ' + selectedFile.name;
+    zone.classList.add('selected');
+  }
+}
+
+async function doImport() {
+  const pin = document.getElementById('pin').value.trim();
+  const status = document.getElementById('status');
+  if (pin.length < 4) { status.innerHTML = '<span class="err">PIN incomplet (4 chiffres)</span>'; return; }
+
+  status.textContent = 'Initialisation…';
+  const ok = await StorageManager.init(pin);
+  if (!ok) { status.innerHTML = '<span class="err">PIN incorrect</span>'; return; }
+
+  let imported;
+
+  if (currentTab === 'export') {
+    if (!selectedFile) { status.innerHTML = '<span class="err">Aucun fichier sélectionné</span>'; return; }
+    status.textContent = 'Lecture du fichier…';
+    try {
+      const text = await selectedFile.text();
+      imported = JSON.parse(text);
+    } catch(e) {
+      status.innerHTML = '<span class="err">Fichier invalide</span>';
+      return;
+    }
+  } else {
+    status.textContent = 'Chargement historique CIC…';
+    try {
+      const r = await fetch('./import_history.json?t=' + Date.now());
+      imported = await r.json();
+    } catch(e) {
+      status.innerHTML = '<span class="err">Fichier import_history.json introuvable</span>';
+      return;
+    }
+  }
+
+  status.textContent = 'Chiffrement et sauvegarde…';
+  function normType(t) { return t === 'revenu' ? 'income' : t === 'depense' ? 'expense' : t; }
+  const txsNorm  = (imported.txs  || []).map(t => ({...t, type: normType(t.type)}));
+  const recsNorm = (imported.recs || []).map(r => ({...r, type: normType(r.type)}));
+  await StorageManager.save(txsNorm, recsNorm, imported.budget || 0, imported.goals || []);
+  if (imported.customCats && imported.customCats.length) {
+    localStorage.setItem('mc4_cats', JSON.stringify(imported.customCats));
+  }
+
+  status.innerHTML = '<span class="ok">✓ ' + txsNorm.length + ' transactions importées !<br>Redirection…</span>';
+  setTimeout(() => { window.location.href = './index.html'; }, 1500);
+}
+
+document.getElementById('pin').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doImport();
+});
+</script>
+</body>
+</html>
