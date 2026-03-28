@@ -126,6 +126,29 @@ function confirmTx(id) {
 function saveAll() {
   StorageManager.save(txs, recs, budget, goals).catch(e => console.error('Erreur sauvegarde:', e));
   _updateWidget();
+  _scheduleAutoBackup();
+}
+
+let _backupTimer = null;
+function _scheduleAutoBackup() {
+  if (_backupTimer) clearTimeout(_backupTimer);
+  _backupTimer = setTimeout(_autoBackup, 4000);
+}
+
+async function _autoBackup() {
+  try {
+    if (!window.Capacitor?.isNativePlatform()) return;
+    const { Filesystem } = window.Capacitor.Plugins;
+    if (!Filesystem) return;
+    const data = JSON.stringify({txs, recs, budget, goals, customCats, exported: new Date().toISOString()});
+    await Filesystem.writeFile({
+      path: 'moncompte_backup.json',
+      data,
+      directory: 'EXTERNAL',
+      encoding: 'utf8',
+      recursive: true
+    });
+  } catch(e) { console.warn('Auto-backup:', e); }
 }
 
 function _updateWidget() {
@@ -168,6 +191,30 @@ async function appInit(data) {
   if (budget) document.getElementById('inp-bgt').value = budget;
 
   populateCats();
+
+  // Restauration auto depuis backup externe si données vides
+  if (txs.length === 0 && window.Capacitor?.isNativePlatform()) {
+    try {
+      const { Filesystem } = window.Capacitor.Plugins;
+      if (Filesystem) {
+        const result = await Filesystem.readFile({
+          path: 'moncompte_backup.json',
+          directory: 'EXTERNAL',
+          encoding: 'utf8'
+        });
+        const imported = JSON.parse(result.data);
+        if (imported.txs && imported.txs.length) {
+          txs    = imported.txs.map(t => ({...t, type: _normType(t.type)}));
+          recs   = (imported.recs   || []).map(r => ({...r, type: _normType(r.type)}));
+          budget = imported.budget || budget;
+          goals  = imported.goals  || goals;
+          if (imported.customCats) customCats = imported.customCats;
+          saveAll();
+          toast('✓ Données restaurées depuis sauvegarde (' + txs.length + ' transactions)');
+        }
+      }
+    } catch(e) { /* pas de backup, on continue */ }
+  }
 
   // Auto-import de l'historique si données vides et fichier présent
   if (txs.length === 0) {
