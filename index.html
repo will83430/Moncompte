@@ -60,7 +60,7 @@
     <div class="bal-cards">
       <div class="bal-mini"><div class="bal-mini-lbl">Revenus</div><div class="bal-mini-val pos" id="bal-inc">0 &euro;</div></div>
       <div class="bal-mini"><div class="bal-mini-lbl">Depenses</div><div class="bal-mini-val neg" id="bal-exp">0 &euro;</div></div>
-      <div class="bal-mini"><div class="bal-mini-lbl">Ce mois</div><div class="bal-mini-val" id="bal-month">0 &euro;</div></div>
+      <div class="bal-mini"><div class="bal-mini-lbl" id="bal-month-lbl">Ce mois</div><div class="bal-mini-val" id="bal-month">0 &euro;</div></div>
     </div>
   </div>
 </div>
@@ -77,9 +77,30 @@
     <div class="qs"><div class="qs-val" id="qs-exp"></div></div>
     <div class="qs"><div class="qs-val" id="qs-bal"></div></div>
   </div>
-  <div style="margin:10px 14px 0;">
-    <input type="text" id="tx-search" placeholder="Rechercher une transaction..." oninput="onSearch(this.value)"
-      style="width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);outline:none;">
+  <div style="margin:10px 14px 0;display:flex;gap:8px;">
+    <input type="text" id="tx-search" placeholder="Rechercher..." oninput="onSearch(this.value)"
+      style="flex:1;min-width:0;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);outline:none;">
+    <button onclick="toggleFilters()" id="flt-toggle"
+      style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:0 14px;font-size:18px;cursor:pointer;flex-shrink:0;">⚙</button>
+  </div>
+  <div id="flt-panel" style="display:none;margin:4px 14px 0;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px;">
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
+      <button onclick="setFilterType('all')"     id="flt-all" class="flt-btn flt-on">Tout</button>
+      <button onclick="setFilterType('expense')" id="flt-exp" class="flt-btn">Depenses</button>
+      <button onclick="setFilterType('income')"  id="flt-inc" class="flt-btn">Revenus</button>
+    </div>
+    <select id="flt-cat" onchange="applyFilters()" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;margin-bottom:8px;"></select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+      <input type="number" id="flt-min" placeholder="Min €" onchange="applyFilters()" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;">
+      <input type="number" id="flt-max" placeholder="Max €" onchange="applyFilters()" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+      <button onclick="setSort('date-desc')" id="srt-dd" class="srt-btn srt-on">Date ↓</button>
+      <button onclick="setSort('date-asc')"  id="srt-da" class="srt-btn">Date ↑</button>
+      <button onclick="setSort('amt-desc')"  id="srt-ad" class="srt-btn">Montant ↓</button>
+      <button onclick="setSort('amt-asc')"   id="srt-aa" class="srt-btn">Montant ↑</button>
+    </div>
+    <button onclick="resetFilters()" style="width:100%;background:none;border:1.5px solid var(--border);border-radius:8px;padding:7px;font-size:12px;color:var(--text3);cursor:pointer;font-family:'Inter',sans-serif;">Réinitialiser les filtres</button>
   </div>
   <div id="rec-alert" style="display:none;margin:12px 14px 0;">
     <div style="background:var(--orange-bg);border:1.5px solid var(--orange);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;gap:10px;">
@@ -132,10 +153,10 @@
     <button onclick="changeMonth(1)">&#9654;</button>
   </div>
   <div class="two-col">
-    <div class="mini-s"><div class="v" style="color:var(--green)" id="st-inc">0 &euro;</div><div class="l">Revenus</div></div>
-    <div class="mini-s"><div class="v" style="color:var(--teal)" id="st-exp">0 &euro;</div><div class="l">Depenses</div></div>
-    <div class="mini-s"><div class="v" id="st-nb" style="color:var(--blue)">0</div><div class="l">Operations</div></div>
-    <div class="mini-s"><div class="v" id="st-avg" style="color:var(--orange)">0 &euro;</div><div class="l">Moy/jour</div></div>
+    <div class="mini-s"><div class="v" style="color:var(--green)" id="st-inc">0 &euro;</div><div class="l">Revenus</div><div class="vs-lm" id="vs-inc"></div></div>
+    <div class="mini-s"><div class="v" style="color:var(--teal)" id="st-exp">0 &euro;</div><div class="l">Depenses</div><div class="vs-lm" id="vs-exp"></div></div>
+    <div class="mini-s"><div class="v" id="st-nb" style="color:var(--blue)">0</div><div class="l">Operations</div><div class="vs-lm" id="vs-nb"></div></div>
+    <div class="mini-s"><div class="v" id="st-avg" style="color:var(--orange)">0 &euro;</div><div class="l">Moy/jour</div><div class="vs-lm" id="vs-avg"></div></div>
   </div>
   <div class="card">
     <div class="card-title">Repartition des depenses</div>
@@ -177,6 +198,15 @@
   <div class="card">
     <div class="card-title">Indicateurs cles</div>
     <div class="kpi-grid" id="analyse-kpis"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Solde bancaire reel</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Entrez votre vrai solde bancaire pour ce mois — l'app projettera le solde de chaque mois.</div>
+    <div class="inline-row">
+      <div class="field" style="margin-bottom:0;flex:1;"><input type="number" id="inp-balref" placeholder="Ex: 1852.22" step="0.01"></div>
+      <button class="small-btn" onclick="saveBalRef()">Definir</button>
+    </div>
+    <div id="balref-display" style="display:none;margin-top:12px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
   </div>
   <div class="card">
     <div class="card-title">Conseils automatiques</div>
@@ -236,6 +266,7 @@
       <button onclick="showSection('cic')" class="small-btn" style="background:var(--orange);">Import CIC</button>
     </div>
     <button onclick="resetAll()" style="width:100%;background:none;border:1.5px solid #c8102e;color:#c8102e;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">Supprimer toutes les donnees</button>
+    <a href="setup.html" style="display:block;text-align:center;margin-top:12px;font-size:12px;color:var(--text3);text-decoration:none;">Reimporter / Configurer</a>
   </div>
 
 </div>
@@ -309,6 +340,18 @@
     <div class="modal-btns">
       <button class="modal-btn-cancel" onclick="closeTxModal()">Annuler</button>
       <button class="modal-btn-save" onclick="saveTxEdit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="cat-detail-modal" onclick="closeCatDetail(event)">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="cat-detail-title"></div>
+    <div id="cat-detail-list" style="max-height:55vh;overflow-y:auto;"></div>
+    <div style="padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+      <div style="font-size:13px;color:var(--text2)">Total</div>
+      <div id="cat-detail-total" style="font-size:16px;font-weight:700;color:#c8102e"></div>
     </div>
   </div>
 </div>

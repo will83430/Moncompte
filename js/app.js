@@ -78,13 +78,20 @@ let txs       = [];
 let recs      = [];
 let budget    = 0;
 let goals     = [];
-let customCats = [];
+let customCats  = [];
+let balanceRef  = null; // {amount, month: 'YYYY-MM'}
 let curDate   = new Date();
 let curType   = 'expense';
 let cicData   = [];
 let cicTab    = 'all';
 let searchQuery = '';
 let newCatType  = 'expense';
+let filterType  = 'all';
+let filterCat   = '';
+let filterMin   = null;
+let filterMax   = null;
+let sortMode    = 'date-desc';
+let filterOpen  = false;
 
 /* ── HELPERS ── */
 function todayStr() { return new Date().toISOString().slice(0, 10); }
@@ -118,6 +125,26 @@ function confirmTx(id) {
 /* ── SAUVEGARDE (async, fire-and-forget OK car état en mémoire sync) ── */
 function saveAll() {
   StorageManager.save(txs, recs, budget, goals).catch(e => console.error('Erreur sauvegarde:', e));
+  _updateWidget();
+}
+
+function _updateWidget() {
+  try {
+    if (!window.Capacitor?.isNativePlatform()) return;
+    const list = getMonthTxs();
+    const inc  = list.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const exp  = list.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    const bal  = inc - exp;
+    const bankBal = getBankBalance(monthKey(curDate));
+    const displayBal = bankBal !== null ? bankBal : bal;
+    const sign = displayBal >= 0 ? '+' : '';
+    window.Capacitor.Plugins.WidgetPlugin.updateWidget({
+      month:    monthLabel(curDate),
+      balance:  sign + fmt(displayBal),
+      income:   fmt(inc),
+      expenses: fmt(exp)
+    });
+  } catch(e) { /* widget non dispo, on ignore */ }
 }
 
 /* ── POINT D'ENTRÉE appelé par pin.js après déverrouillage ── */
@@ -133,6 +160,7 @@ async function appInit(data) {
   budget = data.budget || 0;
   goals  = data.goals  || [];
   customCats = JSON.parse(localStorage.getItem('mc4_cats') || '[]');
+  balanceRef = JSON.parse(localStorage.getItem('mc4_balref') || 'null');
 
   document.getElementById('hdr-date').textContent =
     new Date().toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric', month: 'long'}).toUpperCase();
@@ -160,6 +188,7 @@ async function appInit(data) {
   }
 
   renderAll();
+  _updateWidget();
 
   // Désinstaller les anciens SW en dev (évite les conflits de cache)
   if ('serviceWorker' in navigator) {
@@ -313,6 +342,48 @@ function renderAll() {
   if (mnStats) mnStats.textContent = monthLabel(curDate);
 }
 
+/* ── SOLDE BANCAIRE ── */
+function getBankBalance(targetMk) {
+  if (!balanceRef) return null;
+  const refMk = balanceRef.month;
+  let balance  = balanceRef.amount;
+  if (targetMk === refMk) return balance;
+  const toNum  = mk => { const [y, m] = mk.split('-').map(Number); return y * 12 + m; };
+  const refN   = toNum(refMk), tgtN = toNum(targetMk);
+  const step   = tgtN > refN ? 1 : -1;
+  for (let n = refN + step; step > 0 ? n <= tgtN : n >= tgtN; n += step) {
+    const y = Math.floor((n - 1) / 12), m = ((n - 1) % 12) + 1;
+    const l = getMonthTxs(new Date(y, m - 1, 1));
+    const bilan = l.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0)
+                - l.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    balance += step > 0 ? bilan : -bilan;
+  }
+  return balance;
+}
+
+function saveBalRef() {
+  const val = parseFloat(document.getElementById('inp-balref').value);
+  if (isNaN(val)) return toast('⚠ Montant invalide');
+  balanceRef = {amount: val, month: monthKey(curDate)};
+  localStorage.setItem('mc4_balref', JSON.stringify(balanceRef));
+  renderHeader();
+  renderBalRefDisplay();
+  toast('✓ Solde de référence défini pour ' + monthLabel(curDate));
+}
+
+function renderBalRefDisplay() {
+  const el = document.getElementById('balref-display');
+  if (!el) return;
+  if (!balanceRef) { el.style.display = 'none'; return; }
+  const bankBal  = getBankBalance(monthKey(curDate));
+  const refLabel = new Date(balanceRef.month + '-15').toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
+  el.style.display = 'block';
+  el.innerHTML = `Référence : <strong>${fmt(balanceRef.amount)}</strong> (${refLabel})<br>
+    Solde estimé ce mois : <strong style="color:${bankBal >= 0 ? 'var(--green)' : '#c8102e'}">${fmt(bankBal)}</strong>
+    <button onclick="balanceRef=null;localStorage.removeItem('mc4_balref');renderHeader();renderBalRefDisplay();"
+      style="margin-left:10px;background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;">Effacer</button>`;
+}
+
 /* ── HEADER ── */
 function renderHeader() {
   const mList = getMonthTxs();
@@ -326,24 +397,111 @@ function renderHeader() {
   // Mini-cartes = revenus/dépenses du mois
   document.getElementById('bal-inc').textContent = fmtShort(mInc);
   document.getElementById('bal-exp').textContent = fmtShort(mExp);
-  // CE MOIS = même valeur
-  const me = document.getElementById('bal-month');
-  me.textContent = (mBal >= 0 ? '+' : '') + fmtShort(mBal);
-  me.className   = 'bal-mini-val' + (mBal >= 0 ? ' pos' : ' neg');
+  // CE MOIS / SOLDE BANCAIRE
+  const me  = document.getElementById('bal-month');
+  const lbl = document.getElementById('bal-month-lbl');
+  const bankBal = getBankBalance(monthKey(curDate));
+  if (bankBal !== null) {
+    if (lbl) lbl.textContent = 'Solde banque';
+    me.textContent = fmt(bankBal);
+    me.className   = 'bal-mini-val' + (bankBal >= 0 ? ' pos' : ' neg');
+  } else {
+    if (lbl) lbl.textContent = 'Ce mois';
+    me.textContent = (mBal >= 0 ? '+' : '') + fmtShort(mBal);
+    me.className   = 'bal-mini-val' + (mBal >= 0 ? ' pos' : ' neg');
+  }
 }
 
-/* ── RECHERCHE ── */
-function onSearch(q) {
-  searchQuery = q.trim().toLowerCase();
+/* ── RECHERCHE & FILTRES ── */
+function onSearch(q) { searchQuery = q.trim().toLowerCase(); renderDash(); }
+
+function toggleFilters() {
+  filterOpen = !filterOpen;
+  const panel = document.getElementById('flt-panel');
+  const btn   = document.getElementById('flt-toggle');
+  if (panel) panel.style.display = filterOpen ? 'block' : 'none';
+  if (btn) btn.style.borderColor = filterOpen ? 'var(--teal)' : 'var(--border)';
+  if (filterOpen) populateFilterCats();
+}
+
+function populateFilterCats() {
+  const sel = document.getElementById('flt-cat');
+  if (!sel) return;
+  const cats = [...new Set(getMonthTxs().map(t => t.cat))].sort();
+  sel.innerHTML = '<option value="">Toutes catégories</option>' +
+    cats.map(id => { const c = catById(id); return `<option value="${id}" ${filterCat===id?'selected':''}>${c.icon} ${c.label}</option>`; }).join('');
+}
+
+function setFilterType(t) {
+  filterType = t;
+  ['all','exp','inc'].forEach(k => {
+    const el = document.getElementById('flt-' + k);
+    if (el) el.className = 'flt-btn' + (k === (t==='all'?'all':t==='expense'?'exp':'inc') ? ' flt-on' : '');
+  });
   renderDash();
+}
+
+function setSort(mode) {
+  sortMode = mode;
+  ['dd','da','ad','aa'].forEach((k,i) => {
+    const el = document.getElementById('srt-' + k);
+    if (el) el.className = 'srt-btn' + (['date-desc','date-asc','amt-desc','amt-asc'][i]===mode ? ' srt-on' : '');
+  });
+  renderDash();
+}
+
+function applyFilters() {
+  filterCat = document.getElementById('flt-cat')?.value || '';
+  filterMin = parseFloat(document.getElementById('flt-min')?.value) || null;
+  filterMax = parseFloat(document.getElementById('flt-max')?.value) || null;
+  renderDash();
+}
+
+function resetFilters() {
+  filterType = 'all'; filterCat = ''; filterMin = null; filterMax = null; sortMode = 'date-desc';
+  const fMin = document.getElementById('flt-min'); if (fMin) fMin.value = '';
+  const fMax = document.getElementById('flt-max'); if (fMax) fMax.value = '';
+  populateFilterCats();
+  setFilterType('all');
+  setSort('date-desc');
+}
+
+/* ── DÉTAIL CATÉGORIE (donut) ── */
+function openCatDetail(catId) {
+  const c    = catById(catId);
+  const list = getMonthTxs().filter(t => t.cat === catId).sort((a,b) => b.date.localeCompare(a.date));
+  const total = list.reduce((s,t) => s + (t.type==='expense'?-1:1) * t.amount, 0);
+  document.getElementById('cat-detail-title').textContent = c.icon + ' ' + c.label;
+  document.getElementById('cat-detail-total').textContent = (total>=0?'+':'') + fmt(total);
+  document.getElementById('cat-detail-total').style.color = total >= 0 ? 'var(--green)' : '#c8102e';
+  document.getElementById('cat-detail-list').innerHTML = list.map(t => {
+    const d = new Date(t.date+'T12:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+    const descSafe = t.desc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const sign = t.type==='income' ? '+' : '-';
+    const col  = t.type==='income' ? 'var(--green)' : '#c8102e';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${descSafe}</div><div style="font-size:11px;color:var(--text3)">${d}</div></div>
+      <div style="font-size:14px;font-weight:600;color:${col};flex-shrink:0;">${sign}${fmt(t.amount)}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('cat-detail-modal').classList.add('open');
+}
+
+function closeCatDetail(event) {
+  if (!event || event.target === document.getElementById('cat-detail-modal'))
+    document.getElementById('cat-detail-modal').classList.remove('open');
 }
 
 /* ── DASHBOARD ── */
 function renderDash() {
   const monthList = getMonthTxs();
-  const list = searchQuery
+  let list = searchQuery
     ? txs.filter(t => t.desc.toLowerCase().includes(searchQuery) || String(t.amount).includes(searchQuery))
     : monthList;
+  if (filterType !== 'all') list = list.filter(t => t.type === filterType);
+  if (filterCat)            list = list.filter(t => t.cat === filterCat);
+  if (filterMin !== null)   list = list.filter(t => t.amount >= filterMin);
+  if (filterMax !== null)   list = list.filter(t => t.amount <= filterMax);
   const inc  = monthList.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const exp  = monthList.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const bal  = inc - exp;
@@ -365,10 +523,16 @@ function renderDash() {
     alertEl.style.display = 'none';
   }
 
-  const sorted = [...list].sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
+  const sorted = [...list].sort((a, b) => {
+    if (sortMode === 'date-asc')  return a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id));
+    if (sortMode === 'amt-desc')  return b.amount - a.amount;
+    if (sortMode === 'amt-asc')   return a.amount - b.amount;
+    return b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id));
+  });
   const el = document.getElementById('tx-list');
   if (!sorted.length) {
-    const emptyMsg = searchQuery ? 'Aucun résultat pour "' + searchQuery + '"' : 'Aucune transaction ce mois';
+    const hasFilter = filterType !== 'all' || filterCat || filterMin || filterMax;
+    const emptyMsg = (searchQuery || hasFilter) ? 'Aucun résultat' : 'Aucune transaction ce mois';
     el.innerHTML = `<div class="empty"><div class="empty-ico">📂</div><div class="empty-lbl">${emptyMsg}</div></div>`;
     return;
   }
@@ -405,15 +569,39 @@ function renderDash() {
 }
 
 /* ── STATS ── */
+function _vsDelta(cur, prev, elId, lessIsBetter) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!prev) { el.textContent = ''; return; }
+  const diff = cur - prev;
+  const pct  = Math.round(diff / prev * 100);
+  const good = lessIsBetter ? diff <= 0 : diff >= 0;
+  el.textContent = (diff > 0 ? '+' : '') + pct + '% vs mois préc.';
+  el.style.color = good ? 'var(--green)' : '#c8102e';
+}
+
 function renderStats() {
   const list = getMonthTxs();
   const inc  = list.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const exp  = list.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const days = new Date(curDate.getFullYear(), curDate.getMonth() + 1, 0).getDate();
+
+  // Mois précédent pour comparaison
+  const prevDate  = new Date(curDate.getFullYear(), curDate.getMonth() - 1, 1);
+  const prevList  = getMonthTxs(prevDate);
+  const prevInc   = prevList.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const prevExp   = prevList.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const prevDays  = new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0).getDate();
+
   document.getElementById('st-inc').textContent = fmtShort(inc);
   document.getElementById('st-exp').textContent = fmtShort(exp);
   document.getElementById('st-nb').textContent  = list.length;
   document.getElementById('st-avg').textContent = fmtShort(exp / days);
+
+  _vsDelta(inc, prevInc, 'vs-inc', false);
+  _vsDelta(exp, prevExp, 'vs-exp', true);
+  _vsDelta(list.length, prevList.length, 'vs-nb', false);
+  _vsDelta(exp / days, prevExp / prevDays, 'vs-avg', true);
 
   // Donut
   const bycat = {};
@@ -433,14 +621,14 @@ function renderStats() {
     sorted.forEach(([catId, amt]) => {
       const c    = catById(catId);
       const dash = amt / totalExp * circ;
-      svgStr += `<circle cx="90" cy="90" r="60" fill="none" stroke="${c.color}" stroke-width="24" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" stroke-linecap="butt"/>`;
+      svgStr += `<circle cx="90" cy="90" r="60" fill="none" stroke="${c.color}" stroke-width="24" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" stroke-linecap="butt" onclick="openCatDetail('${catId}')" style="cursor:pointer;"/>`;
       offset += dash;
     });
     svg.innerHTML = svgStr;
     legend.innerHTML = sorted.map(([catId, amt]) => {
       const c   = catById(catId);
       const pct = Math.round(amt / totalExp * 100);
-      return `<div class="legend-item">
+      return `<div class="legend-item" onclick="openCatDetail('${catId}')" style="cursor:pointer;">
         <div class="legend-dot" style="background:${c.color}"></div>
         <div class="legend-name">${c.icon} ${c.label}</div>
         <div class="legend-pct">${pct}%</div>
@@ -646,11 +834,12 @@ function renderAnalyse() {
       </div>`).join('');
   }
 
-  // Objectifs + Budget + Catégories
+  // Objectifs + Budget + Catégories + Solde ref
   renderGoals();
   renderBudget();
   renderRule(inc, exp, bycat);
   renderCatManager();
+  renderBalRefDisplay();
 }
 
 /* ── BUDGET ── */
