@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MonCompte — Import initial</title>
+  <title>MonCarnetCompte — Import initial</title>
   <style>
     body { font-family: sans-serif; background: #f0f4f8; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
     .box { background: white; border-radius: 16px; padding: 32px; max-width: 380px; width: 90%; box-shadow: 0 4px 24px #0002; text-align: center; }
@@ -24,7 +24,7 @@
 </head>
 <body>
 <div class="box">
-  <h2>MonCompte</h2>
+  <h2>MonCarnetCompte</h2>
   <p>Configure ton application</p>
 
   <div class="tab-btns">
@@ -34,7 +34,7 @@
 
   <div id="zone-export">
     <div class="file-zone" id="file-zone" onclick="document.getElementById('file-input').click()">
-      Appuie ici pour choisir le fichier<br><strong>moncompte_export_*.json</strong>
+      Appuie ici pour choisir le fichier<br><strong>moncarnetcompte_export_*.json</strong>
     </div>
     <input type="file" id="file-input" accept=".json" style="display:none" onchange="onFileSelected(this)">
   </div>

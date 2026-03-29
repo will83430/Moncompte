@@ -1,6 +1,6 @@
 {
-  "name": "MonCompte",
-  "short_name": "MonCompte",
+  "name": "MonCarnetCompte",
+  "short_name": "MonCarnetCompte",
   "description": "Suivi financier personnel sécurisé",
   "start_url": "./index.html",
   "display": "standalone",

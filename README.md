@@ -1,65 +1,110 @@
-# MonCompte 💳
+# MonCarnetCompte
 
-Application de suivi financier personnel — style bancaire CIC, installable sur mobile (PWA).
+Application de suivi financier personnel — style bancaire CIC, installable sur Android (APK natif via Capacitor).
 
-## 🌐 URL de l'appli
-```
-https://will83430.github.io/Moncompte/moncompte.html
-```
+## Structure du projet
 
-## 📁 Structure du projet
-```
+```text
 Moncompte/
-├── index.html        ← (à créer) redirige vers moncompte.html
-├── moncompte.html    ← fichier principal de l'appli
-└── README.md
+├── index.html        ← Application principale
+├── setup.html        ← Import / configuration initiale
+├── js/
+│   ├── app.js        ← Logique applicative complète
+│   ├── pin.js        ← Gestion code PIN
+│   └── storage.js    ← Chiffrement AES-256 + LocalStorage
+├── css/app.css       ← Styles
+├── www/              ← Copie compilée pour Capacitor (APK)
+├── android/          ← Projet Android natif (hors git)
+└── capacitor.config.json
 ```
 
-## 🚀 Déploiement
-Le site est hébergé sur **GitHub Pages** (branche `main`).
+## Fonctionnalités
 
-Toute modification pushée sur `main` est automatiquement déployée.
+### Dashboard
 
-## 💻 Travailler en local avec VS Code
+- Ajout de transactions (revenus / dépenses) avec 50+ catégories
+- Recherche par libellé ou montant
+- Filtres : type, catégorie, montant min/max
+- Tri : date, montant, catégorie
+- Dépenses récurrentes (import automatique en début de mois)
+- Import relevé CIC (glisser-déposer CSV)
 
-### 1. Cloner le repo
+### Statistiques
+
+- Graphique revenus / dépenses 3D — 3, 6 ou 12 mois
+- Donut 3D cliquable par catégorie → liste des transactions
+- Comparaison mois vs mois sur chaque indicateur
+
+### Analyse
+
+- Graphique évolution du solde 3D — 3, 6 ou 12 mois
+- Solde bancaire réel (projection depuis un solde de référence)
+- Catégories personnalisées (ajout / suppression)
+- Export JSON / CSV
+- Import JSON (restauration)
+
+### Sécurité
+
+- Code PIN à 4 chiffres obligatoire au démarrage
+- Chiffrement **AES-GCM 256 bits** (Web Crypto API)
+- Données stockées chiffrées dans le LocalStorage
+
+### Android
+
+- APK natif signé via Capacitor v6
+- Widget écran d'accueil (solde du mois)
+- Sauvegarde automatique après chaque modification
+- Restauration automatique au démarrage si données vides
+- Mise à jour sans désinstallation : `adb install -r app-release.apk`
+
+## Installation APK sur Android
+
+### Avec câble USB
+
 ```bash
-git clone https://github.com/will83430/Moncompte.git
-cd Moncompte
+adb install -r /chemin/vers/app-release.apk
 ```
 
-### 2. Lancer un serveur local
+### Via ADB WiFi (sans câble)
+
+1. Paramètres → Options développeur → Débogage sans fil
+2. Noter l'IP et le port affichés
+
 ```bash
-# Avec Python
-python -m http.server 8000
-
-# Puis ouvrir dans le navigateur
-http://localhost:8000/moncompte.html
+adb connect 192.168.1.X:PORT
+adb install -r app-release.apk
 ```
 
-### 3. Modifier et pusher
+## Build APK
+
 ```bash
-git add .
-git commit -m "Mise à jour MonCompte"
-git push
+# Synchroniser les sources web vers www/
+cp js/app.js www/js/app.js
+cp css/app.css www/css/app.css
+cp index.html www/index.html
+
+# Sync Capacitor
+npx cap sync android
+
+# Compiler l'APK release signé
+cd android && ./gradlew assembleRelease
+# APK : android/app/build/outputs/apk/release/app-release.apk
 ```
 
-## 📱 Installation sur mobile
-1. Ouvrir l'URL dans Chrome ou Opera
-2. Menu ⋮ → **Ajouter à l'écran d'accueil** → **Installer**
+Le keystore de signature est à `/home/will/moncompte.keystore` (hors git).
 
-## 🔧 Fonctionnalités
-- ✅ Suivi revenus / dépenses
-- ✅ Catégories style CIC
-- ✅ Dépenses récurrentes
-- ✅ Import relevé CIC (CSV)
-- ✅ Graphiques (donut, barres 6 mois)
-- ✅ Analyse & conseils automatiques
-- ✅ Objectifs d'épargne
-- ✅ Export CSV / JSON
-- ✅ Code PIN & mode discret
-- ✅ PWA installable sur mobile
+## Sauvegarde des données
 
-## 💾 Données
-Stockées en **LocalStorage** dans le navigateur (clé `mc4_txs`, `mc4_recs`, `mc4_goals`).
-Utiliser **Export JSON** pour sauvegarder avant de vider le cache.
+Les données sont chiffrées dans le LocalStorage de la WebView Android.
+
+- **Sauvegarde auto** : fichier `moncarnetcompte_backup.json` écrit après chaque modification — conservé lors des mises à jour via `adb install -r`
+- **Export manuel** : Analyse → Export JSON → fichier daté dans Téléchargements
+- **Avant désinstallation complète** : toujours exporter manuellement d'abord
+
+## Branches
+
+| Branche | Rôle |
+| --- | --- |
+| `main` | Production stable |
+| `dev` | Développement général |
+| `dev-donut3D` | Graphiques 3D (branche active) |

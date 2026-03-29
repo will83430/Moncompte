@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   MonCompte — Logique applicative complète
+   MonCarnetCompte — Logique applicative complète
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── CATÉGORIES DÉPENSES ── */
@@ -92,6 +92,8 @@ let filterMin   = null;
 let filterMax   = null;
 let sortMode    = 'date-desc';
 let filterOpen  = false;
+let balChartPeriod = 12;
+let barChartPeriod = 6;
 
 /* ── HELPERS ── */
 function todayStr() { return new Date().toISOString().slice(0, 10); }
@@ -126,6 +128,29 @@ function confirmTx(id) {
 function saveAll() {
   StorageManager.save(txs, recs, budget, goals).catch(e => console.error('Erreur sauvegarde:', e));
   _updateWidget();
+  _scheduleAutoBackup();
+}
+
+let _backupTimer = null;
+function _scheduleAutoBackup() {
+  if (_backupTimer) clearTimeout(_backupTimer);
+  _backupTimer = setTimeout(_autoBackup, 4000);
+}
+
+async function _autoBackup() {
+  try {
+    if (!window.Capacitor?.isNativePlatform()) return;
+    const { Filesystem } = window.Capacitor.Plugins;
+    if (!Filesystem) return;
+    const data = JSON.stringify({txs, recs, budget, goals, customCats, exported: new Date().toISOString()});
+    await Filesystem.writeFile({
+      path: 'moncarnetcompte_backup.json',
+      data,
+      directory: 'EXTERNAL',
+      encoding: 'utf8',
+      recursive: true
+    });
+  } catch(e) { console.warn('Auto-backup:', e); }
 }
 
 function _updateWidget() {
@@ -168,6 +193,30 @@ async function appInit(data) {
   if (budget) document.getElementById('inp-bgt').value = budget;
 
   populateCats();
+
+  // Restauration auto depuis backup externe si données vides
+  if (txs.length === 0 && window.Capacitor?.isNativePlatform()) {
+    try {
+      const { Filesystem } = window.Capacitor.Plugins;
+      if (Filesystem) {
+        const result = await Filesystem.readFile({
+          path: 'moncarnetcompte_backup.json',
+          directory: 'EXTERNAL',
+          encoding: 'utf8'
+        });
+        const imported = JSON.parse(result.data);
+        if (imported.txs && imported.txs.length) {
+          txs    = imported.txs.map(t => ({...t, type: _normType(t.type)}));
+          recs   = (imported.recs   || []).map(r => ({...r, type: _normType(r.type)}));
+          budget = imported.budget || budget;
+          goals  = imported.goals  || goals;
+          if (imported.customCats) customCats = imported.customCats;
+          saveAll();
+          toast('✓ Données restaurées depuis sauvegarde (' + txs.length + ' transactions)');
+        }
+      }
+    } catch(e) { /* pas de backup, on continue */ }
+  }
 
   // Auto-import de l'historique si données vides et fichier présent
   if (txs.length === 0) {
@@ -466,6 +515,60 @@ function resetFilters() {
   setSort('date-desc');
 }
 
+/* ── DONUT 3D ── */
+function _darkenHex(hex, f) {
+  const n = parseInt(hex.replace('#',''), 16);
+  const d = v => Math.max(0, Math.round(v * f)).toString(16).padStart(2,'0');
+  return '#' + d((n>>16)&255) + d((n>>8)&255) + d(n&255);
+}
+
+function _buildDonut3D(sorted, totalExp) {
+  const cx=100, cy=52, Ro=65, Ri=38, ys=0.45, dep=20;
+  const px = (r, a)       => (cx + r * Math.cos(a)).toFixed(2);
+  const py = (r, a, dy=0) => (cy + r * Math.sin(a) * ys + dy).toFixed(2);
+  const A  = (r, a, lg, sw, dy=0) =>
+    `A ${r} ${(r*ys).toFixed(2)} 0 ${lg} ${sw} ${px(r,a)} ${py(r,a,dy)}`;
+
+  let ang = -Math.PI / 2;
+  const slices = sorted.map(([catId, amt]) => {
+    const sweep = amt / totalExp * 2 * Math.PI;
+    const s = { catId, sa: ang, ea: ang + sweep, sweep };
+    ang += sweep;
+    return s;
+  });
+
+  let out = '';
+
+  // Ombre portée
+  out += `<ellipse cx="${cx}" cy="${(cy + Ro*ys + dep + 8).toFixed(1)}" rx="${Ro+6}" ry="${((Ro+6)*ys*0.35).toFixed(1)}" fill="rgba(0,0,0,0.18)"/>`;
+
+  // Faces du bas (fond de l'anneau visible depuis trou)
+  slices.forEach(({catId, sa, ea, sweep}) => {
+    const c = catById(catId);
+    const lg = sweep > Math.PI ? 1 : 0;
+    out += `<path fill="${_darkenHex(c.color,0.55)}" d="M ${px(Ro,sa)} ${py(Ro,sa,dep)} ${A(Ro,ea,lg,1,dep)} L ${px(Ri,ea)} ${py(Ri,ea,dep)} ${A(Ri,sa,lg,0,dep)} Z"/>`;
+  });
+
+  // Parois extérieures — tri peintre: dos d'abord, avant en dernier
+  [...slices]
+    .sort((a,b) => Math.sin((a.sa+a.ea)/2) - Math.sin((b.sa+b.ea)/2))
+    .forEach(({catId, sa, ea, sweep}) => {
+      if (Math.sin((sa+ea)/2) < -0.08 && sweep < Math.PI) return;
+      const c = catById(catId);
+      const lg = sweep > Math.PI ? 1 : 0;
+      out += `<path fill="${_darkenHex(c.color,0.72)}" onclick="openCatDetail('${catId}')" style="cursor:pointer" d="M ${px(Ro,sa)} ${py(Ro,sa)} ${A(Ro,ea,lg,1)} L ${px(Ro,ea)} ${py(Ro,ea,dep)} ${A(Ro,sa,lg,0,dep)} Z"/>`;
+    });
+
+  // Face supérieure (anneau)
+  slices.forEach(({catId, sa, ea, sweep}) => {
+    const c = catById(catId);
+    const lg = sweep > Math.PI ? 1 : 0;
+    out += `<path fill="${c.color}" onclick="openCatDetail('${catId}')" style="cursor:pointer" d="M ${px(Ro,sa)} ${py(Ro,sa)} ${A(Ro,ea,lg,1)} L ${px(Ri,ea)} ${py(Ri,ea)} ${A(Ri,sa,lg,0)} Z"/>`;
+  });
+
+  return out;
+}
+
 /* ── DÉTAIL CATÉGORIE (donut) ── */
 function openCatDetail(catId) {
   const c    = catById(catId);
@@ -613,18 +716,10 @@ function renderStats() {
   const svg    = document.getElementById('donut-svg');
   const legend = document.getElementById('donut-legend');
   if (!sorted.length) {
-    svg.innerHTML    = '<circle cx="90" cy="90" r="60" fill="none" stroke="#e4e6ea" stroke-width="24"/>';
+    svg.innerHTML    = '<ellipse cx="100" cy="52" rx="65" ry="29" fill="none" stroke="#e4e6ea" stroke-width="24"/>';
     legend.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px 0">Aucune dépense</div>';
   } else {
-    const circ = 2 * Math.PI * 60;
-    let offset = 0, svgStr = '';
-    sorted.forEach(([catId, amt]) => {
-      const c    = catById(catId);
-      const dash = amt / totalExp * circ;
-      svgStr += `<circle cx="90" cy="90" r="60" fill="none" stroke="${c.color}" stroke-width="24" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" stroke-linecap="butt" onclick="openCatDetail('${catId}')" style="cursor:pointer;"/>`;
-      offset += dash;
-    });
-    svg.innerHTML = svgStr;
+    svg.innerHTML = _build3DDonut(sorted, totalExp);
     legend.innerHTML = sorted.map(([catId, amt]) => {
       const c   = catById(catId);
       const pct = Math.round(amt / totalExp * 100);
@@ -637,26 +732,7 @@ function renderStats() {
     }).join('');
   }
 
-  // Bar chart 6 mois
-  const months = [];
-  for (let i = 5; i >= 0; i--) months.push(new Date(curDate.getFullYear(), curDate.getMonth() - i, 1));
-  const maxVal = months.reduce((mx, d) => {
-    const l = getMonthTxs(d);
-    return Math.max(mx, l.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0), l.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0));
-  }, 1);
-  document.getElementById('bar-chart').innerHTML = months.map(d => {
-    const l   = getMonthTxs(d);
-    const inc2 = l.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-    const exp2 = l.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-    const mn  = d.toLocaleDateString('fr-FR', {month: 'short'}).replace('.', '');
-    return `<div class="bc-col">
-      <div class="bc-bars">
-        <div class="bc-bar inc-bar" style="height:${Math.round(inc2/maxVal*80)}px" title="${fmtShort(inc2)}"></div>
-        <div class="bc-bar exp-bar" style="height:${Math.round(exp2/maxVal*80)}px" title="${fmtShort(exp2)}"></div>
-      </div>
-      <div class="bc-month">${mn}</div>
-    </div>`;
-  }).join('');
+  renderBarChart();
 
   renderBalanceChart();
 
@@ -684,61 +760,141 @@ function _chartLbl(v) {
   return (v >= 0 ? '+' : '') + Math.round(v);
 }
 
+function setBarPeriod(n) {
+  barChartPeriod = n;
+  document.querySelectorAll('.bar-prd-btn').forEach(b =>
+    b.classList.toggle('prd-on', b.dataset.p === String(n))
+  );
+  renderBarChart();
+}
+
+function renderBarChart() {
+  const el = document.getElementById('bar-chart');
+  if (!el) return;
+  const n = barChartPeriod;
+  const mos = [];
+  for (let i = n-1; i >= 0; i--) mos.push(new Date(curDate.getFullYear(), curDate.getMonth()-i, 1));
+  const data = mos.map(d => {
+    const l = getMonthTxs(d);
+    return {
+      label: d.toLocaleDateString('fr-FR',{month:'short'}).replace('.',''),
+      inc: l.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),
+      exp: l.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0)
+    };
+  });
+  const maxV = Math.max(...data.flatMap(d=>[d.inc,d.exp]), 1);
+
+  const W=320, H=130, ml=8, mr=20, mt=10, mb=24, D=8, dY=5;
+  const ch = H-mt-mb-dY;
+  const f2 = v => +v.toFixed(2);
+  const bw = n <= 3 ? 28 : n <= 6 ? 15 : 9;
+  const bGap = 2, gGap = n <= 3 ? 24 : n <= 6 ? 12 : 6;
+  const gW = 2*bw + bGap;
+  const totalG = n*gW + (n-1)*gGap;
+  const startX = ml + (W-ml-mr-D-totalG)/2;
+  const gx = i => startX + i*(gW+gGap);
+  const by = h => f2(mt+dY+ch-h);
+  const barH = v => f2(v/maxV*ch);
+  const incC='#10b981', expC='#00857a';
+
+  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="overflow:visible;display:block;">`;
+  [0.5,1].forEach(f => {
+    const gy = f2(mt+dY+ch*(1-f));
+    s += `<line x1="${ml}" y1="${gy}" x2="${W-mr+D}" y2="${gy}" stroke="#e4e6ea" stroke-width="1" pointer-events="none"/>`;
+    s += `<text x="${ml-3}" y="${f2(gy+3.5)}" text-anchor="end" font-size="8" fill="#9ca3af">${_chartLbl(maxV*f)}</text>`;
+  });
+  data.forEach((d,i) => {
+    const gLeft = gx(i);
+    [[d.inc,incC,0],[d.exp,expC,bw+bGap]].forEach(([val,fc,ox]) => {
+      if (!val) return;
+      const h=barH(val), x=f2(gLeft+ox), yT=by(h), yB=f2(mt+dY+ch);
+      const sc=_hexDarken(fc,0.58), tc=_hexDarken(fc,0.78);
+      s += `<rect x="${x}" y="${yT}" width="${bw}" height="${f2(yB-yT)}" fill="${fc}"/>`;
+      s += `<polygon points="${f2(x+bw)},${yT} ${f2(x+bw+D)},${f2(yT-dY)} ${f2(x+bw+D)},${f2(yB-dY)} ${f2(x+bw)},${yB}" fill="${sc}"/>`;
+      s += `<polygon points="${x},${yT} ${f2(x+bw)},${yT} ${f2(x+bw+D)},${f2(yT-dY)} ${f2(x+D)},${f2(yT-dY)}" fill="${tc}"/>`;
+    });
+    s += `<text x="${f2(gLeft+gW/2)}" y="${H-4}" text-anchor="middle" font-size="${n>9?8:9}" fill="#9ca3af">${d.label}</text>`;
+  });
+  s += '</svg>';
+  el.innerHTML = s;
+}
+
+function setBalPeriod(n) {
+  balChartPeriod = n;
+  document.querySelectorAll('.prd-btn').forEach(b =>
+    b.classList.toggle('prd-on', b.dataset.p === String(n))
+  );
+  renderBalanceChart();
+}
+
 function renderBalanceChart() {
   const el = document.getElementById('balance-chart');
   if (!el) return;
 
+  const n = balChartPeriod;
   const months = [];
-  for (let i = 11; i >= 0; i--) months.push(new Date(curDate.getFullYear(), curDate.getMonth() - i, 1));
+  for (let i = n - 1; i >= 0; i--) months.push(new Date(curDate.getFullYear(), curDate.getMonth() - i, 1));
 
   const data = months.map(d => {
     const l = getMonthTxs(d);
     const inc = l.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
     const exp = l.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    return {label: d.toLocaleDateString('fr-FR', {month: 'short'}).replace('.', ''), balance: inc - exp};
+    return { label: d.toLocaleDateString('fr-FR', {month: 'short'}).replace('.',''), balance: inc - exp };
   });
 
-  const values = data.map(d => d.balance);
-  const minVal = Math.min(...values, 0);
-  const maxVal = Math.max(...values, 0);
+  const vals = data.map(d => d.balance);
+  const minVal = Math.min(...vals, 0);
+  const maxVal = Math.max(...vals, 0);
   const range  = maxVal - minVal || 1;
 
-  const W = 320, H = 150, ml = 44, mr = 8, mt = 16, mb = 28;
-  const cw = W - ml - mr, ch = H - mt - mb;
-  const n  = data.length;
+  const W=320, H=165, ml=44, mr=16, mt=22, mb=28, D=10, dY=6;
+  const cw = W - ml - mr - D;
+  const ch = H - mt - mb - dY;
+  const gap = n > 6 ? 3 : 5;
+  const bw  = (cw - gap * (n - 1)) / n;
+  const bx  = i => ml + i * (bw + gap);
+  const by  = v => mt + dY + ch - ((v - minVal) / range) * ch;
+  const zy  = by(0);
 
-  const px = i => ml + (i / (n - 1)) * cw;
-  const py = v => mt + ch - ((v - minVal) / range) * ch;
-  const zeroY = py(0);
-
-  const points = data.map((d, i) => `${px(i).toFixed(1)},${py(d.balance).toFixed(1)}`);
-  const pathD  = 'M ' + points.join(' L ');
-  const areaD  = `M ${px(0).toFixed(1)},${zeroY.toFixed(1)} L ${points.join(' L ')} L ${px(n-1).toFixed(1)},${zeroY.toFixed(1)} Z`;
+  const posC = '#00857a', negC = '#c8102e';
+  const f2   = v => +v.toFixed(2);
 
   let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="overflow:visible;display:block;">`;
 
-  // Lignes horizontales de référence
-  const refs = minVal < 0 && maxVal > 0
-    ? [minVal, 0, maxVal]
-    : [minVal, minVal + range / 2, maxVal];
+  // Lignes de référence
+  const refs = minVal < 0 && maxVal > 0 ? [minVal, 0, maxVal] : [minVal, minVal + range/2, maxVal];
   refs.forEach(v => {
-    const gy = py(v);
-    const isDash = (minVal < 0 && maxVal > 0 && v === 0);
-    svg += `<line x1="${ml}" y1="${gy.toFixed(1)}" x2="${W - mr}" y2="${gy.toFixed(1)}" stroke="#e4e6ea" stroke-width="${isDash ? 1.5 : 1}" ${isDash ? 'stroke-dasharray="4,3"' : ''}/>`;
-    svg += `<text x="${ml - 4}" y="${(gy + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="#9ca3af">${_chartLbl(v)}</text>`;
+    const gy = f2(by(v));
+    const isZ = v === 0;
+    svg += `<line x1="${ml}" y1="${gy}" x2="${W-mr+D}" y2="${gy}" stroke="#e4e6ea" stroke-width="${isZ?1.5:1}" ${isZ?'stroke-dasharray="4,3"':''} pointer-events="none"/>`;
+    svg += `<text x="${ml-4}" y="${f2(gy+3.5)}" text-anchor="end" font-size="9" fill="#9ca3af">${_chartLbl(v)}</text>`;
   });
 
-  // Aire + courbe
-  svg += `<path d="${areaD}" fill="var(--teal)" opacity="0.1"/>`;
-  svg += `<path d="${pathD}" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
-
-  // Points + labels mois
+  // Barres 3D
   data.forEach((d, i) => {
-    const x = px(i), y = py(d.balance);
-    const col = d.balance >= 0 ? 'var(--green)' : '#c8102e';
-    svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${col}" stroke="#fff" stroke-width="2"/>`;
-    if (i % 2 === 0 || i === n - 1) {
-      svg += `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="#9ca3af">${d.label}</text>`;
+    const x    = f2(bx(i));
+    const isPos = d.balance >= 0;
+    const fc   = isPos ? posC : negC;
+    const sc   = _hexDarken(fc, 0.58);
+    const tc   = _hexDarken(fc, 0.78);
+    const yTop = f2(isPos ? by(d.balance) : zy);
+    const yBot = f2(isPos ? zy : by(d.balance));
+    const bh   = f2(yBot - yTop);
+
+    // Front face
+    svg += `<rect x="${x}" y="${yTop}" width="${f2(bw)}" height="${bh}" fill="${fc}"/>`;
+    // Right side face
+    svg += `<polygon points="${f2(x+bw)},${yTop} ${f2(x+bw+D)},${f2(yTop-dY)} ${f2(x+bw+D)},${f2(yBot-dY)} ${f2(x+bw)},${yBot}" fill="${sc}"/>`;
+    // Top cap (positive) or bottom cap (negative)
+    if (isPos) {
+      svg += `<polygon points="${x},${yTop} ${f2(x+bw)},${yTop} ${f2(x+bw+D)},${f2(yTop-dY)} ${f2(x+D)},${f2(yTop-dY)}" fill="${tc}"/>`;
+    } else {
+      svg += `<polygon points="${x},${yBot} ${f2(x+bw)},${yBot} ${f2(x+bw+D)},${f2(yBot-dY)} ${f2(x+D)},${f2(yBot-dY)}" fill="${tc}"/>`;
+    }
+
+    // Label mois
+    if (n <= 6 || i % 2 === 0 || i === n - 1) {
+      svg += `<text x="${f2(x + bw/2)}" y="${H-4}" text-anchor="middle" font-size="${n>9?8:9}" fill="#9ca3af">${d.label}</text>`;
     }
   });
 
@@ -1012,7 +1168,7 @@ function renderCatManager() {
 /* ── EXPORT ── */
 function exportJSON() {
   const data = JSON.stringify({txs, recs, budget, goals, customCats, exported: new Date().toISOString()}, null, 2);
-  _download('moncompte_export_' + todayStr() + '.json', data, 'application/json');
+  _download('moncarnetcompte_export_' + todayStr() + '.json', data, 'application/json');
   toast('✓ Export JSON téléchargé');
 }
 
@@ -1023,7 +1179,7 @@ function exportCSV() {
     const desc = t.desc.replace(/"/g, '""');
     return `${t.date},${t.type==='income'?'Revenu':'Dépense'},"${c.label}","${desc}",${t.type==='income'?'+':'−'}${t.amount.toFixed(2)}`;
   }).join('\n');
-  _download('moncompte_' + todayStr() + '.csv', '\uFEFF' + header + rows, 'text/csv');
+  _download('moncarnetcompte_' + todayStr() + '.csv', '\uFEFF' + header + rows, 'text/csv');
   toast('✓ Export CSV téléchargé');
 }
 
@@ -1033,6 +1189,71 @@ function _download(filename, content, type) {
   const a    = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+/* ── CAMEMBERT 3D ── */
+function _hexDarken(hex, factor) {
+  const h = hex.replace('#','');
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  return `rgb(${Math.round(r*factor)},${Math.round(g*factor)},${Math.round(b*factor)})`;
+}
+
+function _build3DDonut(sorted, totalExp) {
+  const CX = 100, CY = 64;
+  const R  = 62,  ri = 36;
+  const RY = 0.44;
+  const D  = 22;
+
+  const P  = (a, rad, dy=0) => [+(CX+rad*Math.cos(a)).toFixed(2), +(CY+rad*RY*Math.sin(a)+dy).toFixed(2)];
+  const f2 = v => +v.toFixed(2);
+
+  let startAngle = -Math.PI / 2;
+  const segs = sorted.map(([catId, amt]) => {
+    const span = amt / totalExp * 2 * Math.PI;
+    const seg  = { catId, c: catById(catId), a0: startAngle, a1: startAngle + span, span };
+    startAngle += span;
+    return seg;
+  });
+
+  let out = '';
+
+  // Ombre portée
+  out += `<ellipse cx="${CX}" cy="${f2(CY+R*RY+D+8)}" rx="${f2(R*0.86)}" ry="${f2(R*RY*0.44)}" fill="rgba(0,0,0,0.18)" pointer-events="none"/>`;
+
+  // Parois extérieures — face avant [0, π]
+  for (const { catId, c, a0, a1 } of segs) {
+    const vA0 = Math.max(a0, 0), vA1 = Math.min(a1, Math.PI);
+    if (vA1 <= vA0) continue;
+    const [x0,y0]=P(vA0,R,0), [x1,y1]=P(vA1,R,0);
+    const [x0b,y0b]=P(vA0,R,D), [x1b,y1b]=P(vA1,R,D);
+    const rY=f2(R*RY), lg=(vA1-vA0)>Math.PI?1:0;
+    out += `<path d="M${x0},${y0} A${R},${rY} 0 ${lg},1 ${x1},${y1} L${x1b},${y1b} A${R},${rY} 0 ${lg},0 ${x0b},${y0b} Z" fill="${_hexDarken(c.color,0.50)}" onclick="openCatDetail('${catId}')" style="cursor:pointer"/>`;
+  }
+
+  // Parois intérieures (trou) — face avant
+  for (const { catId, c, a0, a1 } of segs) {
+    const vA0 = Math.max(a0, 0), vA1 = Math.min(a1, Math.PI);
+    if (vA1 <= vA0) continue;
+    const [x0,y0]=P(vA0,ri,0), [x1,y1]=P(vA1,ri,0);
+    const [x0b,y0b]=P(vA0,ri,D), [x1b,y1b]=P(vA1,ri,D);
+    const riY=f2(ri*RY), lg=(vA1-vA0)>Math.PI?1:0;
+    out += `<path d="M${x0},${y0} A${ri},${riY} 0 ${lg},1 ${x1},${y1} L${x1b},${y1b} A${ri},${riY} 0 ${lg},0 ${x0b},${y0b} Z" fill="${_hexDarken(c.color,0.35)}" onclick="openCatDetail('${catId}')" style="cursor:pointer"/>`;
+  }
+
+  // Faces supérieures
+  for (const { catId, c, a0, a1, span } of segs) {
+    const [ox0,oy0]=P(a0,R), [ox1,oy1]=P(a1,R);
+    const [ix0,iy0]=P(a0,ri), [ix1,iy1]=P(a1,ri);
+    const rY=f2(R*RY), riY=f2(ri*RY), lg=span>Math.PI?1:0;
+    out += `<path d="M${ox0},${oy0} A${R},${rY} 0 ${lg},1 ${ox1},${oy1} L${ix1},${iy1} A${ri},${riY} 0 ${lg},0 ${ix0},${iy0} Z" fill="${c.color}" stroke="rgba(255,255,255,0.22)" stroke-width="0.8" onclick="openCatDetail('${catId}')" style="cursor:pointer"/>`;
+  }
+
+  // Reflet lumineux (pointer-events:none = ne bloque pas les clics)
+  const hR=(R+ri)/2;
+  out += `<ellipse cx="${CX}" cy="${CY}" rx="${f2(hR)}" ry="${f2(hR*RY)}" fill="none" stroke="rgba(255,255,255,0.11)" stroke-width="${R-ri-3}" pointer-events="none"/>`;
+  out += `<path d="M${f2(CX-R*0.52)},${f2(CY-R*RY*0.82)} A${f2(R*0.72)},${f2(R*RY*0.72)} 0 0,1 ${f2(CX+R*0.28)},${f2(CY-R*RY*0.9)}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="${f2((R-ri)*0.42)}" stroke-linecap="round" pointer-events="none"/>`;
+
+  return out;
 }
 
 /* ── RESET ── */
@@ -1062,7 +1283,7 @@ function _parseCicFile(file) {
     reader.onload = e => {
       try {
         const data = JSON.parse(e.target.result);
-        // Format export natif MonCompte : { txs, recs, budget, goals }
+        // Format export natif MonCarnetCompte : { txs, recs, budget, goals }
         if (data.txs && Array.isArray(data.txs)) {
           const newTxs = data.txs.filter(t => !txs.find(x => x.id === t.id));
           txs = [...txs, ...newTxs];

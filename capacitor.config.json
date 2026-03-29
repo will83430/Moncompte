@@ -1,6 +1,6 @@
 {
   "appId": "com.moncompte.app",
-  "appName": "MonCompte",
+  "appName": "MonCarnetCompte",
   "webDir": "www",
   "server": {
     "androidScheme": "https"
