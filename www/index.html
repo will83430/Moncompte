@@ -54,12 +54,13 @@
     <div class="brand">Mon<span>Compte</span></div>
     <div class="hdr-date" id="hdr-date"></div>
   </div>
+  <div id="account-switcher" class="account-switcher"></div>
   <div class="balance-wrap">
     <div class="bal-label" id="bal-label">Bilan du mois</div>
     <div class="bal-amount" id="bal-main">0,00 &euro;</div>
     <div class="bal-cards">
-      <div class="bal-mini"><div class="bal-mini-lbl">Revenus</div><div class="bal-mini-val pos" id="bal-inc">0 &euro;</div></div>
-      <div class="bal-mini"><div class="bal-mini-lbl">Depenses</div><div class="bal-mini-val neg" id="bal-exp">0 &euro;</div></div>
+      <div class="bal-mini"><div class="bal-mini-lbl" id="bal-inc-lbl">Revenus</div><div class="bal-mini-val pos" id="bal-inc">0 &euro;</div></div>
+      <div class="bal-mini"><div class="bal-mini-lbl" id="bal-exp-lbl">Dépenses</div><div class="bal-mini-val neg" id="bal-exp">0 &euro;</div></div>
       <div class="bal-mini"><div class="bal-mini-lbl" id="bal-month-lbl">Ce mois</div><div class="bal-mini-val" id="bal-month">0 &euro;</div></div>
     </div>
   </div>
@@ -276,9 +277,11 @@
     <div class="card-title">Donnees</div>
     <div class="data-btns">
       <button onclick="exportJSON()" class="small-btn" style="background:var(--blue);">Export JSON</button>
+      <button onclick="importJSON()" class="small-btn" style="background:var(--blue);opacity:0.75;">Import JSON</button>
       <button onclick="exportCSV()" class="small-btn" style="background:var(--green);">Export CSV</button>
       <button onclick="showSection('cic')" class="small-btn" style="background:var(--orange);">Import CIC</button>
     </div>
+    <button onclick="clearCurrentAccountTxs()" style="width:100%;background:none;border:1.5px solid #f59e0b;color:#f59e0b;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;" id="btn-clear-account">Vider le compte actif</button>
     <button onclick="resetAll()" style="width:100%;background:none;border:1.5px solid #c8102e;color:#c8102e;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">Supprimer toutes les donnees</button>
     <a href="setup.html" style="display:block;text-align:center;margin-top:12px;font-size:12px;color:var(--text3);text-decoration:none;">Reimporter / Configurer</a>
   </div>

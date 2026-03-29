@@ -176,9 +176,18 @@ const PinManager = (() => {
   };
 })();
 
-/* ── Verrouillage automatique quand l'app passe en arrière-plan ── */
+/* ── Verrouillage automatique avec période de grâce ── */
+const LOCK_GRACE_MS = 5 * 60 * 1000; // 5 minutes
+let _hiddenAt = null;
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    PinManager.lock();
+    _hiddenAt = Date.now();
+  } else {
+    const elapsed = _hiddenAt ? Date.now() - _hiddenAt : Infinity;
+    if (elapsed >= LOCK_GRACE_MS) {
+      PinManager.lock();
+    }
+    _hiddenAt = null;
   }
 });

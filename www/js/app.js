@@ -73,13 +73,22 @@ const CATS_INC = [
   {id:'autre_rev',group:'Divers',label:'Autre revenu',icon:'💰',color:'#6b7280'},
 ];
 
+/* ── COMPTES PAR DÉFAUT ── */
+const DEFAULT_ACCOUNTS = [
+  {id:'cc',     name:'Compte courant', icon:'🏦', type:'checking', color:'#00857a'},
+  {id:'livret', name:'Livret A Sup',   icon:'💰', type:'savings',  color:'#f59e0b'},
+  {id:'credit', name:'Crédit liberté', icon:'💳', type:'credit',   color:'#6366f1'},
+];
+
 /* ── ÉTAT ── */
 let txs       = [];
 let recs      = [];
 let budget    = 0;
 let goals     = [];
 let customCats  = [];
-let balanceRef  = null; // {amount, month: 'YYYY-MM'}
+let balanceRef  = null; // {[accountId]: {amount, month: 'YYYY-MM'}}
+let accounts    = [];
+let curAccountId = 'cc';
 let curDate   = new Date();
 let curType   = 'expense';
 let cicData   = [];
@@ -111,7 +120,11 @@ function fmt(n, short = false) {
 function fmtShort(n) { return fmt(n, false); }
 function monthKey(d)   { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
 function monthLabel(d) { return d.toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'}).toUpperCase(); }
-function getMonthTxs(d) { const mk = monthKey(d || curDate); return txs.filter(t => t.date.startsWith(mk)); }
+function getMonthTxs(d, aid) {
+  const mk = monthKey(d || curDate);
+  const a  = aid !== undefined ? aid : curAccountId;
+  return txs.filter(t => t.date.startsWith(mk) && (t.accountId || 'cc') === a);
+}
 function todayISO() { return todayStr(); }
 function _findTx(id)  { return txs.find(t  => String(t.id)  === String(id)); }
 function _findRec(id) { return recs.find(r => String(r.id)  === String(id)); }
@@ -142,14 +155,11 @@ async function _autoBackup() {
     if (!window.Capacitor?.isNativePlatform()) return;
     const { Filesystem } = window.Capacitor.Plugins;
     if (!Filesystem) return;
-    const data = JSON.stringify({txs, recs, budget, goals, customCats, exported: new Date().toISOString()});
-    await Filesystem.writeFile({
-      path: 'moncarnetcompte_backup.json',
-      data,
-      directory: 'EXTERNAL',
-      encoding: 'utf8',
-      recursive: true
-    });
+    // Ne jamais sauvegarder si les données sont vides (protection contre reset accidentel)
+    if (txs.length === 0) return;
+    const payload = {txs, recs, budget, goals, customCats, accounts, exported: new Date().toISOString()};
+    const data = JSON.stringify(payload);
+    await Filesystem.writeFile({path: 'moncarnetcompte_backup.json', data, directory: 'EXTERNAL', encoding: 'utf8', recursive: true});
   } catch(e) { console.warn('Auto-backup:', e); }
 }
 
@@ -184,35 +194,43 @@ async function appInit(data) {
   recs   = (data.recs || []).map(r => ({...r, type: _normType(r.type)}));
   budget = data.budget || 0;
   goals  = data.goals  || [];
-  customCats = JSON.parse(localStorage.getItem('mc4_cats') || '[]');
-  balanceRef = JSON.parse(localStorage.getItem('mc4_balref') || 'null');
+  customCats   = JSON.parse(localStorage.getItem('mc4_cats')      || '[]');
+  balanceRef   = JSON.parse(localStorage.getItem('mc4_balref')    || 'null');
+  accounts     = JSON.parse(localStorage.getItem('mc4_accounts')  || 'null') || DEFAULT_ACCOUNTS;
+  curAccountId = localStorage.getItem('mc4_curaccount') || 'cc';
+  if (!accounts.find(a => a.id === curAccountId)) curAccountId = accounts[0].id;
+  // Migration balanceRef plat → par compte
+  if (balanceRef && 'amount' in balanceRef && !balanceRef['cc']) {
+    balanceRef = {cc: {amount: balanceRef.amount, month: balanceRef.month}};
+    localStorage.setItem('mc4_balref', JSON.stringify(balanceRef));
+  }
 
   document.getElementById('hdr-date').textContent =
     new Date().toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric', month: 'long'}).toUpperCase();
   document.getElementById('inp-date').value = todayStr();
   if (budget) document.getElementById('inp-bgt').value = budget;
 
+  // Migration : stamper accountId 'cc' sur les récurrents sans compte
+  recs = recs.map(r => r.accountId ? r : {...r, accountId: 'cc'});
+
   populateCats();
 
-  // Restauration auto depuis backup externe si données vides
+  // Restauration auto uniquement si les données sont vides
   if (txs.length === 0 && window.Capacitor?.isNativePlatform()) {
     try {
       const { Filesystem } = window.Capacitor.Plugins;
       if (Filesystem) {
-        const result = await Filesystem.readFile({
-          path: 'moncarnetcompte_backup.json',
-          directory: 'EXTERNAL',
-          encoding: 'utf8'
-        });
-        const imported = JSON.parse(result.data);
-        if (imported.txs && imported.txs.length) {
-          txs    = imported.txs.map(t => ({...t, type: _normType(t.type)}));
-          recs   = (imported.recs   || []).map(r => ({...r, type: _normType(r.type)}));
-          budget = imported.budget || budget;
-          goals  = imported.goals  || goals;
-          if (imported.customCats) customCats = imported.customCats;
+        const r = await Filesystem.readFile({path: 'moncarnetcompte_backup.json', directory: 'EXTERNAL', encoding: 'utf8'});
+        const d = JSON.parse(r.data);
+        if (d.txs && d.txs.length > 0) {
+          txs    = d.txs.map(t => ({...t, type: _normType(t.type)}));
+          recs   = (d.recs   || []).map(r => ({...r, type: _normType(r.type)}));
+          budget = d.budget || budget;
+          goals  = d.goals  || goals;
+          if (d.customCats) { customCats = d.customCats; localStorage.setItem('mc4_cats', JSON.stringify(customCats)); }
+          if (d.accounts)   { accounts = d.accounts; localStorage.setItem('mc4_accounts', JSON.stringify(accounts)); }
           saveAll();
-          toast('✓ Données restaurées depuis sauvegarde (' + txs.length + ' transactions)');
+          toast('✓ Données restaurées (' + txs.length + ' transactions)');
         }
       }
     } catch(e) { /* pas de backup, on continue */ }
@@ -304,12 +322,12 @@ function addTx() {
   if (!desc)            return toast('⚠ Description manquante');
   if (!date)            return toast('⚠ Date manquante');
 
-  txs.push({id: Date.now(), type: curType, amount: amt, desc, cat, date, recurring: isRec, planned: isPlanned});
+  txs.push({id: Date.now(), type: curType, amount: amt, desc, cat, date, accountId: curAccountId, recurring: isRec, planned: isPlanned});
 
   if (isRec) {
     const exists = recs.find(r => r.desc === desc && r.cat === cat && r.type === curType);
     if (!exists) {
-      recs.push({id: Date.now() + 1, type: curType, amount: amt, desc, cat, day: recDay});
+      recs.push({id: Date.now() + 1, type: curType, amount: amt, desc, cat, day: recDay, accountId: curAccountId});
     }
     toast('✓ Enregistré + ajouté aux récurrents');
   } else if (isPlanned) {
@@ -332,7 +350,9 @@ function addTx() {
 /* ── RÉCURRENTS ── */
 function getPendingRecs() {
   const mk = monthKey(curDate);
-  return recs.filter(r => !txs.some(t => t.cat === r.cat && t.date.startsWith(mk)));
+  return recs
+    .filter(r => (r.accountId || 'cc') === curAccountId)
+    .filter(r => !txs.some(t => t.cat === r.cat && t.date.startsWith(mk) && (t.accountId || 'cc') === curAccountId));
 }
 
 function applyAllRec() {
@@ -342,7 +362,7 @@ function applyAllRec() {
   pending.forEach(r => {
     const day  = Math.min(r.day, new Date(y, m, 0).getDate());
     const date = `${y}-${m}-${String(day).padStart(2, '0')}`;
-    txs.push({id: Date.now() + Math.random(), type: r.type, amount: r.amount, desc: r.desc, cat: r.cat, date, recurring: true, planned: true});
+    txs.push({id: Date.now() + Math.random(), type: r.type, amount: r.amount, desc: r.desc, cat: r.cat, date, accountId: curAccountId, recurring: true, planned: true});
   });
   saveAll();
   toast('✓ ' + pending.length + ' transaction(s) importée(s)');
@@ -356,7 +376,7 @@ function applyOneRec(id) {
   const [y, m] = mk.split('-');
   const day  = Math.min(r.day, new Date(y, m, 0).getDate());
   const date = `${y}-${m}-${String(day).padStart(2, '0')}`;
-  txs.push({id: Date.now(), type: r.type, amount: r.amount, desc: r.desc, cat: r.cat, date, recurring: true, planned: true});
+  txs.push({id: Date.now(), type: r.type, amount: r.amount, desc: r.desc, cat: r.cat, date, accountId: curAccountId, recurring: true, planned: true});
   saveAll();
   toast('✓ Importée : ' + r.desc);
   renderAll();
@@ -379,7 +399,24 @@ function deleteTx(id) {
 }
 
 /* ── RENDER ALL ── */
+/* ── COMPTES ── */
+function switchAccount(id) {
+  curAccountId = id;
+  localStorage.setItem('mc4_curaccount', id);
+  renderAll();
+}
+
+function renderAccountSwitcher() {
+  const el = document.getElementById('account-switcher');
+  if (!el) return;
+  el.innerHTML = accounts.map(a =>
+    `<button class="acc-pill${a.id === curAccountId ? ' acc-pill-active' : ''}"
+       onclick="switchAccount('${a.id}')">${a.icon} ${a.name}</button>`
+  ).join('');
+}
+
 function renderAll() {
+  renderAccountSwitcher();
   renderHeader();
   renderDash();
   renderStats();
@@ -392,17 +429,19 @@ function renderAll() {
 }
 
 /* ── SOLDE BANCAIRE ── */
-function getBankBalance(targetMk) {
-  if (!balanceRef) return null;
-  const refMk = balanceRef.month;
-  let balance  = balanceRef.amount;
+function getBankBalance(targetMk, aid) {
+  const a   = aid || curAccountId;
+  const ref = balanceRef ? balanceRef[a] : null;
+  if (!ref) return null;
+  const refMk = ref.month;
+  let balance  = ref.amount;
   if (targetMk === refMk) return balance;
   const toNum  = mk => { const [y, m] = mk.split('-').map(Number); return y * 12 + m; };
   const refN   = toNum(refMk), tgtN = toNum(targetMk);
   const step   = tgtN > refN ? 1 : -1;
   for (let n = refN + step; step > 0 ? n <= tgtN : n >= tgtN; n += step) {
     const y = Math.floor((n - 1) / 12), m = ((n - 1) % 12) + 1;
-    const l = getMonthTxs(new Date(y, m - 1, 1));
+    const l = getMonthTxs(new Date(y, m - 1, 1), a);
     const bilan = l.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0)
                 - l.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
     balance += step > 0 ? bilan : -bilan;
@@ -413,23 +452,32 @@ function getBankBalance(targetMk) {
 function saveBalRef() {
   const val = parseFloat(document.getElementById('inp-balref').value);
   if (isNaN(val)) return toast('⚠ Montant invalide');
-  balanceRef = {amount: val, month: monthKey(curDate)};
+  if (!balanceRef) balanceRef = {};
+  balanceRef[curAccountId] = {amount: val, month: monthKey(curDate)};
   localStorage.setItem('mc4_balref', JSON.stringify(balanceRef));
   renderHeader();
   renderBalRefDisplay();
   toast('✓ Solde de référence défini pour ' + monthLabel(curDate));
 }
 
+function clearBalRef() {
+  if (balanceRef) delete balanceRef[curAccountId];
+  localStorage.setItem('mc4_balref', JSON.stringify(balanceRef || {}));
+  renderHeader();
+  renderBalRefDisplay();
+}
+
 function renderBalRefDisplay() {
   const el = document.getElementById('balref-display');
   if (!el) return;
-  if (!balanceRef) { el.style.display = 'none'; return; }
+  const ref = balanceRef ? balanceRef[curAccountId] : null;
+  if (!ref) { el.style.display = 'none'; return; }
   const bankBal  = getBankBalance(monthKey(curDate));
-  const refLabel = new Date(balanceRef.month + '-15').toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
+  const refLabel = new Date(ref.month + '-15').toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
   el.style.display = 'block';
-  el.innerHTML = `Référence : <strong>${fmt(balanceRef.amount)}</strong> (${refLabel})<br>
+  el.innerHTML = `Référence : <strong>${fmt(ref.amount)}</strong> (${refLabel})<br>
     Solde estimé ce mois : <strong style="color:${bankBal >= 0 ? 'var(--green)' : '#c8102e'}">${fmt(bankBal)}</strong>
-    <button onclick="balanceRef=null;localStorage.removeItem('mc4_balref');renderHeader();renderBalRefDisplay();"
+    <button onclick="clearBalRef()"
       style="margin-left:10px;background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;">Effacer</button>`;
 }
 
@@ -439,25 +487,82 @@ function renderHeader() {
   const mInc  = mList.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const mExp  = mList.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const mBal  = mInc - mExp;
-  // Valeur principale = bilan du mois
-  const el = document.getElementById('bal-main');
-  el.textContent = (mBal >= 0 ? '+' : '') + fmt(mBal);
-  el.className   = 'bal-amount' + (mBal < 0 ? ' neg' : '');
-  // Mini-cartes = revenus/dépenses du mois
-  document.getElementById('bal-inc').textContent = fmtShort(mInc);
-  document.getElementById('bal-exp').textContent = fmtShort(mExp);
-  // CE MOIS / SOLDE BANCAIRE
-  const me  = document.getElementById('bal-month');
-  const lbl = document.getElementById('bal-month-lbl');
-  const bankBal = getBankBalance(monthKey(curDate));
-  if (bankBal !== null) {
-    if (lbl) lbl.textContent = 'Solde banque';
-    me.textContent = fmt(bankBal);
-    me.className   = 'bal-mini-val' + (bankBal >= 0 ? ' pos' : ' neg');
+  const acc   = accounts.find(a => a.id === curAccountId) || accounts[0];
+  const type  = acc?.type || 'checking';
+
+  const elMain     = document.getElementById('bal-main');
+  const elLabel    = document.getElementById('bal-label');
+  const elIncLbl   = document.getElementById('bal-inc-lbl');
+  const elExpLbl   = document.getElementById('bal-exp-lbl');
+  const elInc      = document.getElementById('bal-inc');
+  const elExp      = document.getElementById('bal-exp');
+  const elMonth    = document.getElementById('bal-month');
+  const elMonthLbl = document.getElementById('bal-month-lbl');
+
+  // Réafficher la 3ème carte par défaut
+  const elMonthCard = elMonth?.closest('.bal-mini');
+  if (elMonthCard) elMonthCard.style.display = '';
+
+  if (type === 'credit') {
+    // Crédit : solde total cumulé comme valeur principale
+    const allTxs = txs.filter(t => (t.accountId || 'cc') === curAccountId);
+    const allExp = allTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const allInc = allTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalBal = getBankBalance(monthKey(new Date()));
+    const mainVal  = totalBal !== null ? totalBal : (allInc - allExp);
+    if (elLabel) elLabel.textContent = 'Encours crédit';
+    elMain.textContent = fmt(Math.abs(mainVal));
+    elMain.className   = 'bal-amount neg';
+    if (elIncLbl) elIncLbl.textContent = 'Remboursé ce mois';
+    if (elExpLbl) elExpLbl.textContent = acc.mensualite ? 'Mensualité' : 'Total remboursé';
+    elInc.textContent = fmtShort(mExp);
+    elExp.textContent = acc.mensualite ? fmtShort(acc.mensualite) : fmtShort(allExp);
+    // 3ème carte : mois restants si mensualité connue, sinon cachée
+    if (elMonthCard && acc.mensualite && mainVal > 0) {
+      elMonthCard.style.display = '';
+      const moisRestants = Math.ceil(Math.abs(mainVal) / acc.mensualite);
+      if (elMonthLbl) elMonthLbl.textContent = 'Mois restants';
+      elMonth.textContent = moisRestants;
+      elMonth.className = 'bal-mini-val';
+    } else if (elMonthCard) {
+      elMonthCard.style.display = 'none';
+    }
+  } else if (type === 'savings') {
+    // Livret : solde total cumulé comme valeur principale
+    const allTxs  = txs.filter(t => (t.accountId || 'cc') === curAccountId);
+    const allInc2 = allTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const allExp2 = allTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const totalBal2 = getBankBalance(monthKey(new Date()));
+    const mainVal2  = totalBal2 !== null ? totalBal2 : (allInc2 - allExp2);
+    if (elLabel) elLabel.textContent = 'Solde livret';
+    elMain.textContent = fmt(mainVal2);
+    elMain.className   = 'bal-amount';
+    if (elIncLbl) elIncLbl.textContent = 'Versé ce mois';
+    if (elExpLbl) elExpLbl.textContent = 'Retiré ce mois';
+    elInc.textContent = fmtShort(mInc);
+    elExp.textContent = fmtShort(mExp);
+    if (elMonthLbl) elMonthLbl.textContent = 'Ce mois';
+    elMonth.textContent = (mBal >= 0 ? '+' : '') + fmtShort(mBal);
+    elMonth.className   = 'bal-mini-val' + (mBal >= 0 ? ' pos' : ' neg');
   } else {
-    if (lbl) lbl.textContent = 'Ce mois';
-    me.textContent = (mBal >= 0 ? '+' : '') + fmtShort(mBal);
-    me.className   = 'bal-mini-val' + (mBal >= 0 ? ' pos' : ' neg');
+    // Compte courant (défaut)
+    if (elLabel) elLabel.textContent = 'Bilan du mois';
+    elMain.textContent = (mBal >= 0 ? '+' : '') + fmt(mBal);
+    elMain.className   = 'bal-amount' + (mBal < 0 ? ' neg' : '');
+    if (elIncLbl) elIncLbl.textContent = 'Revenus';
+    if (elExpLbl) elExpLbl.textContent = 'Dépenses';
+    elInc.textContent = fmtShort(mInc);
+    elExp.textContent = fmtShort(mExp);
+    const bankBal = getBankBalance(monthKey(curDate));
+    if (bankBal !== null) {
+      if (elMonthLbl) elMonthLbl.textContent = 'Solde banque';
+      elMonth.textContent = fmt(bankBal);
+      elMonth.className   = 'bal-mini-val' + (bankBal >= 0 ? ' pos' : ' neg');
+    } else {
+      if (elMonthLbl) elMonthLbl.textContent = 'Ce mois';
+      elMonth.textContent = (mBal >= 0 ? '+' : '') + fmtShort(mBal);
+      elMonth.className   = 'bal-mini-val' + (mBal >= 0 ? ' pos' : ' neg');
+    }
   }
 }
 
@@ -616,9 +721,9 @@ function renderDash() {
 
   const pending = getPendingRecs();
   const alertEl = document.getElementById('rec-alert');
-  if (searchQuery) { alertEl.style.display = 'none'; }
   const isFuture = monthKey(curDate) > monthKey(new Date());
-  if (pending.length > 0 && isFuture) {
+  const accType = (accounts.find(a => a.id === curAccountId) || {}).type || 'checking';
+  if (pending.length > 0 && isFuture && (accType === 'checking' || accType === 'credit') && !searchQuery) {
     alertEl.style.display = 'block';
     document.getElementById('rec-alert-txt').textContent =
       pending.length + ' dépense' + (pending.length > 1 ? 's' : '') + ' récurrente' + (pending.length > 1 ? 's' : '') + ' à importer';
@@ -639,11 +744,13 @@ function renderDash() {
     el.innerHTML = `<div class="empty"><div class="empty-ico">📂</div><div class="empty-lbl">${emptyMsg}</div></div>`;
     return;
   }
+  const isCredit = (accounts.find(a => a.id === curAccountId) || {}).type === 'credit';
   el.innerHTML = sorted.map(t => {
     const c    = catById(t.cat);
     const d    = new Date(t.date + 'T12:00').toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
-    const sign = t.type === 'income' ? '+' : '-';
-    const cls  = t.type === 'income' ? 'inc' : 'exp';
+    // Pour le crédit : tout s'affiche en positif (vert = remboursement)
+    const sign = isCredit ? '+' : (t.type === 'income' ? '+' : '-');
+    const cls  = isCredit ? 'inc' : (t.type === 'income' ? 'inc' : 'exp');
     const recBadge = t.recurring ? `<span class="badge-rec">🔄</span>` : '';
     const descSafe = t.desc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const tid = `'${t.id}'`;
@@ -1167,9 +1274,35 @@ function renderCatManager() {
 
 /* ── EXPORT ── */
 function exportJSON() {
-  const data = JSON.stringify({txs, recs, budget, goals, customCats, exported: new Date().toISOString()}, null, 2);
+  const data = JSON.stringify({txs, recs, budget, goals, customCats, accounts, exported: new Date().toISOString()}, null, 2);
   _download('moncarnetcompte_export_' + todayStr() + '.json', data, 'application/json');
   toast('✓ Export JSON téléchargé');
+}
+
+function importJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const d = JSON.parse(text);
+      if (!d.txs) { toast('Fichier invalide'); return; }
+      if (!confirm(`Restaurer ${d.txs.length} transactions et ${(d.recs||[]).length} récurrents ?\n\nLes données actuelles seront remplacées.`)) return;
+      txs       = d.txs    || [];
+      recs      = d.recs   || [];
+      budget    = d.budget || 0;
+      goals     = d.goals  || [];
+      if (d.customCats) { customCats = d.customCats; localStorage.setItem('mc4_cats', JSON.stringify(customCats)); }
+      if (d.accounts)   { accounts   = d.accounts;   localStorage.setItem('mc4_accounts', JSON.stringify(accounts)); }
+      saveAll();
+      renderAll();
+      toast(`✓ ${txs.length} transactions restaurées`);
+    } catch(err) { toast('Erreur lecture fichier'); }
+  };
+  input.click();
 }
 
 function exportCSV() {
@@ -1257,6 +1390,15 @@ function _build3DDonut(sorted, totalExp) {
 }
 
 /* ── RESET ── */
+function clearCurrentAccountTxs() {
+  const acc = accounts.find(a => a.id === curAccountId) || {name: curAccountId};
+  if (!confirm(`Supprimer TOUTES les transactions de "${acc.name}" ?\n\nLes autres comptes ne sont pas touchés.`)) return;
+  txs = txs.filter(t => (t.accountId || 'cc') !== curAccountId);
+  saveAll();
+  renderAll();
+  toast(`✓ Transactions "${acc.name}" supprimées`);
+}
+
 function resetAll() {
   if (!confirm('⚠ ATTENTION\n\nSuppression DÉFINITIVE de toutes les données.\n\nÊtes-vous sûr ?')) return;
   txs = []; recs = []; budget = 0; goals = [];
@@ -1363,17 +1505,25 @@ function _renderCicList() {
     </div></div>`;
   }).join('');
 }
+function _importType(amount) {
+  const isCredit = accounts.find(a => a.id === curAccountId)?.type === 'credit';
+  const positive = amount >= 0;
+  // Pour un crédit : paiement (+) = dépense, nouveau crédit (-) = revenu
+  return (isCredit ? !positive : positive) ? 'income' : 'expense';
+}
 function importOneRow(idx) {
   const r = cicData.find((_, i) => i === idx);
   if (!r) return;
-  txs.push({id:Date.now(), type:r.amount>=0?'income':'expense', amount:Math.abs(r.amount), desc:r.label, cat:r.amount>=0?'autre_rev':'autre_dep', date:r.date, recurring:false});
+  const type = _importType(r.amount);
+  txs.push({id:Date.now(), type, amount:Math.abs(r.amount), desc:r.label, cat:type==='income'?'autre_rev':'autre_dep', date:r.date, accountId:curAccountId, recurring:false});
   r.status = 'ok';
   saveAll(); _renderCicList(); toast('✓ Transaction importée');
 }
 function importAllNew() {
   const newRows = cicData.filter(r => r.status === 'new');
   newRows.forEach(r => {
-    txs.push({id:Date.now()+Math.random(), type:r.amount>=0?'income':'expense', amount:Math.abs(r.amount), desc:r.label, cat:r.amount>=0?'autre_rev':'autre_dep', date:r.date, recurring:false});
+    const type = _importType(r.amount);
+    txs.push({id:Date.now()+Math.random(), type, amount:Math.abs(r.amount), desc:r.label, cat:type==='income'?'autre_rev':'autre_dep', date:r.date, accountId:curAccountId, recurring:false});
     r.status = 'ok';
   });
   saveAll(); _renderCicList(); toast(`✓ ${newRows.length} transaction(s) importée(s)`);
@@ -1495,7 +1645,7 @@ function saveTxEdit() {
   // Gérer l'ajout/retrait des récurrentes
   const recExists = recs.find(r => r.cat === cat && r.desc === desc);
   if (isRec && !recExists) {
-    recs.push({id: Date.now(), type: _txModalType, amount: amt, desc, cat, day: parseInt(date.split('-')[2]) || 1});
+    recs.push({id: Date.now(), type: _txModalType, amount: amt, desc, cat, day: parseInt(date.split('-')[2]) || 1, accountId: curAccountId});
     toast('✓ Transaction modifiée + ajoutée aux récurrentes');
   } else if (!isRec && recExists) {
     recs = recs.filter(r => !(r.cat === cat && r.desc === desc));

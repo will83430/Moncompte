@@ -137,7 +137,7 @@ const StorageManager = (() => {
 
     /* Réinitialisation complète */
     wipe() {
-      ['mc4_data', 'mc4_salt', 'mc3_txs', 'mc3_recs', 'mc3_bgt'].forEach(k => localStorage.removeItem(k));
+      ['mc4_data','mc4_salt','mc4_balref','mc4_cats','mc4_accounts','mc4_curaccount','mc3_txs','mc3_recs','mc3_bgt'].forEach(k => localStorage.removeItem(k));
       _key = null;
     }
   };
