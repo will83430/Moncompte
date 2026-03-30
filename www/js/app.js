@@ -102,10 +102,14 @@ let filterMax   = null;
 let sortMode    = 'date-desc';
 let filterOpen  = false;
 let balChartPeriod = 12;
+let viewMode = 'reel'; // 'reel' | 'previsionnel'
 let barChartPeriod = 6;
 
 /* ── HELPERS ── */
 function todayStr() { return new Date().toISOString().slice(0, 10); }
+// Transactions neutres (virements entre comptes propres) : visibles dans la liste mais exclues des stats
+function _isIncome(t)  { return t.type === 'income'  && !t.transfer; }
+function _isExpense(t) { return t.type === 'expense' && !t.transfer; }
 function catList()  {
   const base = curType === 'expense' ? CATS_EXP : CATS_INC;
   const custom = customCats.filter(c => c.type === curType);
@@ -120,10 +124,22 @@ function fmt(n, short = false) {
 function fmtShort(n) { return fmt(n, false); }
 function monthKey(d)   { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
 function monthLabel(d) { return d.toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'}).toUpperCase(); }
-function getMonthTxs(d, aid) {
-  const mk = monthKey(d || curDate);
-  const a  = aid !== undefined ? aid : curAccountId;
-  return txs.filter(t => t.date.startsWith(mk) && (t.accountId || 'cc') === a);
+function getMonthTxs(d, aid, forceMode) {
+  const mk   = monthKey(d || curDate);
+  const a    = aid !== undefined ? aid : curAccountId;
+  const mode = forceMode || viewMode;
+  return txs.filter(t =>
+    t.date.startsWith(mk) &&
+    (t.accountId || 'cc') === a &&
+    (mode === 'previsionnel' || !t.planned)
+  );
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById('mode-reel').classList.toggle('mode-on', mode === 'reel');
+  document.getElementById('mode-prev').classList.toggle('mode-on', mode === 'previsionnel');
+  renderAll();
 }
 function todayISO() { return todayStr(); }
 function _findTx(id)  { return txs.find(t  => String(t.id)  === String(id)); }
@@ -131,6 +147,7 @@ function _findRec(id) { return recs.find(r => String(r.id)  === String(id)); }
 function confirmTx(id) {
   const t = _findTx(id);
   if (!t) return;
+  if (!confirm(`Confirmer "${t.desc}" (${t.type === 'expense' ? '-' : '+'}${t.amount.toFixed(2)} €) ?`)) return;
   t.planned = false;
   saveAll();
   renderAll();
@@ -157,7 +174,7 @@ async function _autoBackup() {
     if (!Filesystem) return;
     // Ne jamais sauvegarder si les données sont vides (protection contre reset accidentel)
     if (txs.length === 0) return;
-    const payload = {txs, recs, budget, goals, customCats, accounts, exported: new Date().toISOString()};
+    const payload = {txs, recs, budget, goals, customCats, accounts, balanceRef, exported: new Date().toISOString()};
     const data = JSON.stringify(payload);
     await Filesystem.writeFile({path: 'moncarnetcompte_backup.json', data, directory: 'EXTERNAL', encoding: 'utf8', recursive: true});
   } catch(e) { console.warn('Auto-backup:', e); }
@@ -167,8 +184,8 @@ function _updateWidget() {
   try {
     if (!window.Capacitor?.isNativePlatform()) return;
     const list = getMonthTxs();
-    const inc  = list.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-    const exp  = list.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    const inc  = list.filter(_isIncome).reduce((s,t)=>s+t.amount,0);
+    const exp  = list.filter(_isExpense).reduce((s,t)=>s+t.amount,0);
     const bal  = inc - exp;
     const bankBal = getBankBalance(monthKey(curDate));
     const displayBal = bankBal !== null ? bankBal : bal;
@@ -227,8 +244,9 @@ async function appInit(data) {
           recs   = (d.recs   || []).map(r => ({...r, type: _normType(r.type)}));
           budget = d.budget || budget;
           goals  = d.goals  || goals;
-          if (d.customCats) { customCats = d.customCats; localStorage.setItem('mc4_cats', JSON.stringify(customCats)); }
-          if (d.accounts)   { accounts = d.accounts; localStorage.setItem('mc4_accounts', JSON.stringify(accounts)); }
+          if (d.customCats)  { customCats  = d.customCats;  localStorage.setItem('mc4_cats',    JSON.stringify(customCats)); }
+          if (d.accounts)    { accounts    = d.accounts;    localStorage.setItem('mc4_accounts', JSON.stringify(accounts)); }
+          if (d.balanceRef)  { balanceRef  = d.balanceRef;  localStorage.setItem('mc4_balref',   JSON.stringify(balanceRef)); }
           saveAll();
           toast('✓ Données restaurées (' + txs.length + ' transactions)');
         }
@@ -316,13 +334,16 @@ function addTx() {
   const date   = document.getElementById('inp-date').value;
   const isRec     = document.getElementById('chk-rec').checked;
   const recDay    = parseInt(document.getElementById('inp-recday').value) || 1;
-  const isPlanned = document.getElementById('chk-planned').checked;
+  const isPlanned  = document.getElementById('chk-planned').checked;
+  const isTransfer = document.getElementById('chk-transfer').checked;
 
   if (!amt || amt <= 0) return toast('⚠ Montant invalide');
   if (!desc)            return toast('⚠ Description manquante');
   if (!date)            return toast('⚠ Date manquante');
 
-  txs.push({id: Date.now(), type: curType, amount: amt, desc, cat, date, accountId: curAccountId, recurring: isRec, planned: isPlanned});
+  const newTx = {id: Date.now(), type: curType, amount: amt, desc, cat, date, accountId: curAccountId, recurring: isRec, planned: isPlanned};
+  if (isTransfer) newTx.transfer = true;
+  txs.push(newTx);
 
   if (isRec) {
     const exists = recs.find(r => r.desc === desc && r.cat === cat && r.type === curType);
@@ -341,7 +362,8 @@ function addTx() {
   document.getElementById('inp-desc').value = '';
   document.getElementById('inp-date').value = todayStr();
   document.getElementById('chk-rec').checked = false;
-  document.getElementById('chk-planned').checked = false;
+  document.getElementById('chk-planned').checked  = false;
+  document.getElementById('chk-transfer').checked = false;
   document.getElementById('inp-recday').value = '';
   renderAll();
   showSection('dash');
@@ -434,16 +456,17 @@ function getBankBalance(targetMk, aid) {
   const ref = balanceRef ? balanceRef[a] : null;
   if (!ref) return null;
   const refMk = ref.month;
-  let balance  = ref.amount;
+  let balance = ref.amount;
   if (targetMk === refMk) return balance;
-  const toNum  = mk => { const [y, m] = mk.split('-').map(Number); return y * 12 + m; };
-  const refN   = toNum(refMk), tgtN = toNum(targetMk);
-  const step   = tgtN > refN ? 1 : -1;
+  const toNum = mk => { const [y, m] = mk.split('-').map(Number); return y * 12 + m; };
+  const refN  = toNum(refMk), tgtN = toNum(targetMk);
+  const step  = tgtN > refN ? 1 : -1;
   for (let n = refN + step; step > 0 ? n <= tgtN : n >= tgtN; n += step) {
     const y = Math.floor((n - 1) / 12), m = ((n - 1) % 12) + 1;
-    const l = getMonthTxs(new Date(y, m - 1, 1), a);
-    const bilan = l.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0)
-                - l.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    // Toujours 'reel' : le solde bancaire n'inclut jamais les transactions prévues
+    const l = getMonthTxs(new Date(y, m - 1, 1), a, 'reel');
+    const bilan = l.filter(_isIncome).reduce((s,t)=>s+t.amount,0)
+                - l.filter(_isExpense).reduce((s,t)=>s+t.amount,0);
     balance += step > 0 ? bilan : -bilan;
   }
   return balance;
@@ -453,7 +476,17 @@ function saveBalRef() {
   const val = parseFloat(document.getElementById('inp-balref').value);
   if (isNaN(val)) return toast('⚠ Montant invalide');
   if (!balanceRef) balanceRef = {};
-  balanceRef[curAccountId] = {amount: val, month: monthKey(curDate)};
+  // Stocker sur le mois précédent : val = refPrev + bilanceMoisCourant
+  // → refPrev = val - bilanMoisCourant (confirmé seulement)
+  const curMk = monthKey(curDate);
+  const [cy, cm] = curMk.split('-').map(Number);
+  const prevMk = cm === 1
+    ? `${cy - 1}-12`
+    : `${cy}-${String(cm - 1).padStart(2, '0')}`;
+  const curMonthTxs = getMonthTxs(curDate, curAccountId, 'reel');
+  const curBilan = curMonthTxs.filter(_isIncome).reduce((s, t) => s + t.amount, 0)
+                 - curMonthTxs.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
+  balanceRef[curAccountId] = {amount: val - curBilan, month: prevMk};
   localStorage.setItem('mc4_balref', JSON.stringify(balanceRef));
   renderHeader();
   renderBalRefDisplay();
@@ -483,9 +516,11 @@ function renderBalRefDisplay() {
 
 /* ── HEADER ── */
 function renderHeader() {
-  const mList = getMonthTxs();
-  const mInc  = mList.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const mExp  = mList.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  // mInc/mExp toujours en mode réel (transactions confirmées uniquement)
+  // pour que le calcul du solde prévu soit correct
+  const mList = getMonthTxs(undefined, undefined, 'reel');
+  const mInc  = mList.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+  const mExp  = mList.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
   const mBal  = mInc - mExp;
   const acc   = accounts.find(a => a.id === curAccountId) || accounts[0];
   const type  = acc?.type || 'checking';
@@ -506,8 +541,8 @@ function renderHeader() {
   if (type === 'credit') {
     // Crédit : solde total cumulé comme valeur principale
     const allTxs = txs.filter(t => (t.accountId || 'cc') === curAccountId);
-    const allExp = allTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    const allInc = allTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const allExp = allTxs.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
+    const allInc = allTxs.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
     const totalBal = getBankBalance(monthKey(new Date()));
     const mainVal  = totalBal !== null ? totalBal : (allInc - allExp);
     if (elLabel) elLabel.textContent = 'Encours crédit';
@@ -530,8 +565,8 @@ function renderHeader() {
   } else if (type === 'savings') {
     // Livret : solde total cumulé comme valeur principale
     const allTxs  = txs.filter(t => (t.accountId || 'cc') === curAccountId);
-    const allInc2 = allTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const allExp2 = allTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const allInc2 = allTxs.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+    const allExp2 = allTxs.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
     const totalBal2 = getBankBalance(monthKey(new Date()));
     const mainVal2  = totalBal2 !== null ? totalBal2 : (allInc2 - allExp2);
     if (elLabel) elLabel.textContent = 'Solde livret';
@@ -546,22 +581,43 @@ function renderHeader() {
     elMonth.className   = 'bal-mini-val' + (mBal >= 0 ? ' pos' : ' neg');
   } else {
     // Compte courant (défaut)
-    if (elLabel) elLabel.textContent = 'Bilan du mois';
-    elMain.textContent = (mBal >= 0 ? '+' : '') + fmt(mBal);
-    elMain.className   = 'bal-amount' + (mBal < 0 ? ' neg' : '');
-    if (elIncLbl) elIncLbl.textContent = 'Revenus';
-    if (elExpLbl) elExpLbl.textContent = 'Dépenses';
-    elInc.textContent = fmtShort(mInc);
-    elExp.textContent = fmtShort(mExp);
     const bankBal = getBankBalance(monthKey(curDate));
-    if (bankBal !== null) {
-      if (elMonthLbl) elMonthLbl.textContent = 'Solde banque';
-      elMonth.textContent = fmt(bankBal);
-      elMonth.className   = 'bal-mini-val' + (bankBal >= 0 ? ' pos' : ' neg');
+    if (viewMode === 'previsionnel') {
+      // En prévision : mini-cartes montrent les totaux incluant les prévus
+      const allList = getMonthTxs();  // mode previsionnel courant
+      const allInc  = allList.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+      const allExp  = allList.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
+      const allBal  = allInc - allExp;
+      if (elIncLbl) elIncLbl.textContent = 'Revenus';
+      if (elExpLbl) elExpLbl.textContent = 'Dépenses';
+      elInc.textContent = fmtShort(allInc);
+      elExp.textContent = fmtShort(allExp);
+      if (elMonthLbl) elMonthLbl.textContent = 'Bilan du mois';
+      elMonth.textContent = (allBal >= 0 ? '+' : '') + fmtShort(allBal);
+      elMonth.className   = 'bal-mini-val' + (allBal >= 0 ? ' pos' : ' neg');
+      // Solde prévu = solde banque réel + transactions prévues restantes
+      const projBal = bankBal !== null ? bankBal + (allInc - mInc) - (allExp - mExp) : allBal;
+      if (elLabel) elLabel.textContent = 'Solde prévu';
+      elMain.textContent = (projBal >= 0 ? '+' : '') + fmt(projBal);
+      elMain.className   = 'bal-amount' + (projBal < 0 ? ' neg' : '');
     } else {
-      if (elMonthLbl) elMonthLbl.textContent = 'Ce mois';
+      // Mode Réel : mini-cartes en reel uniquement
+      if (elIncLbl) elIncLbl.textContent = 'Revenus';
+      if (elExpLbl) elExpLbl.textContent = 'Dépenses';
+      elInc.textContent = fmtShort(mInc);
+      elExp.textContent = fmtShort(mExp);
+      if (elMonthLbl) elMonthLbl.textContent = 'Bilan du mois';
       elMonth.textContent = (mBal >= 0 ? '+' : '') + fmtShort(mBal);
       elMonth.className   = 'bal-mini-val' + (mBal >= 0 ? ' pos' : ' neg');
+      if (bankBal !== null) {
+        if (elLabel) elLabel.textContent = 'Solde banque';
+        elMain.textContent = fmt(bankBal);
+        elMain.className   = 'bal-amount' + (bankBal < 0 ? ' neg' : '');
+      } else {
+        if (elLabel) elLabel.textContent = 'Bilan du mois';
+        elMain.textContent = (mBal >= 0 ? '+' : '') + fmt(mBal);
+        elMain.className   = 'bal-amount' + (mBal < 0 ? ' neg' : '');
+      }
     }
   }
 }
@@ -710,8 +766,8 @@ function renderDash() {
   if (filterCat)            list = list.filter(t => t.cat === filterCat);
   if (filterMin !== null)   list = list.filter(t => t.amount >= filterMin);
   if (filterMax !== null)   list = list.filter(t => t.amount <= filterMax);
-  const inc  = monthList.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const exp  = monthList.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const inc  = monthList.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+  const exp  = monthList.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
   const bal  = inc - exp;
   document.getElementById('qs-inc').textContent = fmtShort(inc);
   document.getElementById('qs-exp').textContent = fmtShort(exp);
@@ -792,15 +848,15 @@ function _vsDelta(cur, prev, elId, lessIsBetter) {
 
 function renderStats() {
   const list = getMonthTxs();
-  const inc  = list.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const exp  = list.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const inc  = list.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+  const exp  = list.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
   const days = new Date(curDate.getFullYear(), curDate.getMonth() + 1, 0).getDate();
 
   // Mois précédent pour comparaison
   const prevDate  = new Date(curDate.getFullYear(), curDate.getMonth() - 1, 1);
   const prevList  = getMonthTxs(prevDate);
-  const prevInc   = prevList.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const prevExp   = prevList.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const prevInc   = prevList.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+  const prevExp   = prevList.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
   const prevDays  = new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0).getDate();
 
   document.getElementById('st-inc').textContent = fmtShort(inc);
@@ -815,7 +871,7 @@ function renderStats() {
 
   // Donut
   const bycat = {};
-  list.filter(t => t.type === 'expense').forEach(t => { bycat[t.cat] = (bycat[t.cat] || 0) + t.amount; });
+  list.filter(_isExpense).forEach(t => { bycat[t.cat] = (bycat[t.cat] || 0) + t.amount; });
   const sorted   = Object.entries(bycat).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const totalExp = sorted.reduce((s, [, v]) => s + v, 0);
   document.getElementById('donut-total').textContent = fmtShort(totalExp);
@@ -885,8 +941,8 @@ function renderBarChart() {
     const l = getMonthTxs(d);
     return {
       label: d.toLocaleDateString('fr-FR',{month:'short'}).replace('.',''),
-      inc: l.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),
-      exp: l.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0)
+      inc: l.filter(_isIncome).reduce((s,t)=>s+t.amount,0),
+      exp: l.filter(_isExpense).reduce((s,t)=>s+t.amount,0)
     };
   });
   const maxV = Math.max(...data.flatMap(d=>[d.inc,d.exp]), 1);
@@ -944,8 +1000,8 @@ function renderBalanceChart() {
 
   const data = months.map(d => {
     const l = getMonthTxs(d);
-    const inc = l.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const exp = l.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const inc = l.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+    const exp = l.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
     return { label: d.toLocaleDateString('fr-FR', {month: 'short'}).replace('.',''), balance: inc - exp };
   });
 
@@ -1048,8 +1104,8 @@ function renderRecs() {
 /* ── ANALYSE ── */
 function renderAnalyse() {
   const list = getMonthTxs();
-  const inc  = list.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const exp  = list.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const inc  = list.filter(_isIncome).reduce((s, t) => s + t.amount, 0);
+  const exp  = list.filter(_isExpense).reduce((s, t) => s + t.amount, 0);
   const savings     = inc - exp;
   const savingsRate = inc > 0 ? Math.round(savings / inc * 100) : 0;
   const days        = new Date(curDate.getFullYear(), curDate.getMonth() + 1, 0).getDate();
@@ -1068,7 +1124,7 @@ function renderAnalyse() {
 
   // Conseils automatiques
   const bycat   = {};
-  list.filter(t => t.type === 'expense').forEach(t => { bycat[t.cat] = (bycat[t.cat] || 0) + t.amount; });
+  list.filter(_isExpense).forEach(t => { bycat[t.cat] = (bycat[t.cat] || 0) + t.amount; });
   const conseils = [];
   if (inc === 0) {
     conseils.push({ico:'📥', bg:'var(--blue-bg)', title:'Aucun revenu ce mois', text:'Ajoutez vos revenus pour obtenir une analyse complète.'});
@@ -1119,7 +1175,7 @@ function renderBudget() {
   const bgtDisplay = document.getElementById('bgt-display');
   if (!bgtDisplay) return;
   if (budget <= 0) { bgtDisplay.style.display = 'none'; return; }
-  const exp = getMonthTxs().filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const exp = getMonthTxs().filter(_isExpense).reduce((s, t) => s + t.amount, 0);
   const remaining = budget - exp;
   const pct = Math.min(Math.round(exp / budget * 100), 100);
   bgtDisplay.style.display = 'block';
@@ -1162,10 +1218,10 @@ function renderRule(inc, exp, bycat) {
 function renderGoals() {
   const el = document.getElementById('goals-list');
   if (!el) return;
-  const totalSavings = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0)
-                     - txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const mInc = getMonthTxs().filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const mExp = getMonthTxs().filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const totalSavings = txs.filter(_isIncome).reduce((s,t)=>s+t.amount,0)
+                     - txs.filter(_isExpense).reduce((s,t)=>s+t.amount,0);
+  const mInc = getMonthTxs().filter(_isIncome).reduce((s,t)=>s+t.amount,0);
+  const mExp = getMonthTxs().filter(_isExpense).reduce((s,t)=>s+t.amount,0);
   const monthly = mInc - mExp;
   if (!goals.length) {
     el.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">Aucun objectif défini</div>';
@@ -1274,7 +1330,7 @@ function renderCatManager() {
 
 /* ── EXPORT ── */
 function exportJSON() {
-  const data = JSON.stringify({txs, recs, budget, goals, customCats, accounts, exported: new Date().toISOString()}, null, 2);
+  const data = JSON.stringify({txs, recs, budget, goals, customCats, accounts, balanceRef, exported: new Date().toISOString()}, null, 2);
   _download('moncarnetcompte_export_' + todayStr() + '.json', data, 'application/json');
   toast('✓ Export JSON téléchargé');
 }
@@ -1295,8 +1351,9 @@ function importJSON() {
       recs      = d.recs   || [];
       budget    = d.budget || 0;
       goals     = d.goals  || [];
-      if (d.customCats) { customCats = d.customCats; localStorage.setItem('mc4_cats', JSON.stringify(customCats)); }
-      if (d.accounts)   { accounts   = d.accounts;   localStorage.setItem('mc4_accounts', JSON.stringify(accounts)); }
+      if (d.customCats)  { customCats  = d.customCats;  localStorage.setItem('mc4_cats',    JSON.stringify(customCats)); }
+      if (d.accounts)    { accounts    = d.accounts;    localStorage.setItem('mc4_accounts', JSON.stringify(accounts)); }
+      if (d.balanceRef)  { balanceRef  = d.balanceRef;  localStorage.setItem('mc4_balref',   JSON.stringify(balanceRef)); }
       saveAll();
       renderAll();
       toast(`✓ ${txs.length} transactions restaurées`);
@@ -1393,6 +1450,7 @@ function _build3DDonut(sorted, totalExp) {
 function clearCurrentAccountTxs() {
   const acc = accounts.find(a => a.id === curAccountId) || {name: curAccountId};
   if (!confirm(`Supprimer TOUTES les transactions de "${acc.name}" ?\n\nLes autres comptes ne sont pas touchés.`)) return;
+  if (!confirm(`⚠ DERNIÈRE CONFIRMATION\n\nToutes les transactions de "${acc.name}" seront effacées définitivement.\n\nContinuer ?`)) return;
   txs = txs.filter(t => (t.accountId || 'cc') !== curAccountId);
   saveAll();
   renderAll();
@@ -1401,6 +1459,7 @@ function clearCurrentAccountTxs() {
 
 function resetAll() {
   if (!confirm('⚠ ATTENTION\n\nSuppression DÉFINITIVE de toutes les données.\n\nÊtes-vous sûr ?')) return;
+  if (!confirm('⚠ DERNIÈRE CONFIRMATION\n\nTOUTES les données de TOUS les comptes seront effacées.\n\nContinuer ?')) return;
   txs = []; recs = []; budget = 0; goals = [];
   saveAll();
   document.getElementById('inp-bgt').value = '';
@@ -1618,7 +1677,8 @@ function openTxModal(id) {
   document.getElementById('tx-edit-desc').value    = t.desc;
   document.getElementById('tx-edit-amt').value     = t.amount;
   document.getElementById('tx-edit-date').value    = t.date;
-  document.getElementById('tx-edit-planned').checked = !!t.planned;
+  document.getElementById('tx-edit-planned').checked  = !!t.planned;
+  document.getElementById('tx-edit-transfer').checked = !!t.transfer;
   document.getElementById('tx-edit-rec').checked = !!recs.find(r => r.cat === t.cat && r.desc === t.desc);
   _populateTxModalCats(t.cat);
   document.getElementById('tx-edit-modal').classList.add('open');
@@ -1636,12 +1696,13 @@ function saveTxEdit() {
   const amt     = parseFloat(document.getElementById('tx-edit-amt').value);
   const date    = document.getElementById('tx-edit-date').value;
   const cat     = document.getElementById('tx-edit-cat').value;
-  const planned   = document.getElementById('tx-edit-planned').checked;
-  const isRec     = document.getElementById('tx-edit-rec').checked;
+  const planned    = document.getElementById('tx-edit-planned').checked;
+  const isTransfer = document.getElementById('tx-edit-transfer').checked;
+  const isRec      = document.getElementById('tx-edit-rec').checked;
   if (!desc || !amt || amt <= 0 || !date) return toast('⚠ Données invalides');
   const t = _findTx(id);
   if (!t) return;
-  Object.assign(t, {type: _txModalType, desc, amount: amt, date, cat, planned});
+  Object.assign(t, {type: _txModalType, desc, amount: amt, date, cat, planned, transfer: isTransfer || undefined});
   // Gérer l'ajout/retrait des récurrentes
   const recExists = recs.find(r => r.cat === cat && r.desc === desc);
   if (isRec && !recExists) {

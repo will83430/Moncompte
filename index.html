@@ -56,7 +56,13 @@
   </div>
   <div id="account-switcher" class="account-switcher"></div>
   <div class="balance-wrap">
-    <div class="bal-label" id="bal-label">Bilan du mois</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+      <div class="bal-label" id="bal-label">Bilan du mois</div>
+      <div class="mode-toggle" id="mode-toggle">
+        <button class="mode-btn mode-on" id="mode-reel" onclick="setViewMode('reel')">Réel</button>
+        <button class="mode-btn" id="mode-prev" onclick="setViewMode('previsionnel')">Prévision</button>
+      </div>
+    </div>
     <div class="bal-amount" id="bal-main">0,00 &euro;</div>
     <div class="bal-cards">
       <div class="bal-mini"><div class="bal-mini-lbl" id="bal-inc-lbl">Revenus</div><div class="bal-mini-val pos" id="bal-inc">0 &euro;</div></div>
@@ -134,6 +140,12 @@
       <label class="field-check" for="chk-planned">
         <input type="checkbox" id="chk-planned">
         <div><div>Transaction prevue</div><small>A cocher quand elle sera effectuee</small></div>
+      </label>
+    </div>
+    <div class="field">
+      <label class="field-check" for="chk-transfer">
+        <input type="checkbox" id="chk-transfer">
+        <div><div>Virement neutre</div><small>Visible dans la liste mais exclu des stats et du bilan</small></div>
       </label>
     </div>
     <div class="field">
@@ -346,6 +358,12 @@
       <label class="field-check" for="tx-edit-planned" style="padding:10px 14px;">
         <input type="checkbox" id="tx-edit-planned">
         <div><div>Transaction prevue</div><small>Decocher quand elle est effectuee</small></div>
+      </label>
+    </div>
+    <div class="modal-field">
+      <label class="field-check" for="tx-edit-transfer" style="padding:10px 14px;">
+        <input type="checkbox" id="tx-edit-transfer">
+        <div><div>Virement neutre</div><small>Exclu des stats et du bilan</small></div>
       </label>
     </div>
     <div class="modal-field">
