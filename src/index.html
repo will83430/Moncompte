@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#00857a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>MonCarnetCompte</title>
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="css/app.css?v=10">
+</head>
+<body>
+
+<!-- ═══ ÉCRAN PIN ═══════════════════════════════════════════ -->
+<div id="pin-screen">
+  <div class="pin-header">
+    <div class="pin-logo">MonCarnetCompte</div>
+    <div class="pin-subtitle" id="pin-subtitle">Entrez votre PIN</div>
+  </div>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot" id="dot-0"></div>
+    <div class="pin-dot" id="dot-1"></div>
+    <div class="pin-dot" id="dot-2"></div>
+    <div class="pin-dot" id="dot-3"></div>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+  <div class="pin-pad">
+    <button class="pin-key" onclick="pinPress('1')">1</button>
+    <button class="pin-key" onclick="pinPress('2')">2</button>
+    <button class="pin-key" onclick="pinPress('3')">3</button>
+    <button class="pin-key" onclick="pinPress('4')">4</button>
+    <button class="pin-key" onclick="pinPress('5')">5</button>
+    <button class="pin-key" onclick="pinPress('6')">6</button>
+    <button class="pin-key" onclick="pinPress('7')">7</button>
+    <button class="pin-key" onclick="pinPress('8')">8</button>
+    <button class="pin-key" onclick="pinPress('9')">9</button>
+    <button class="pin-key pin-key-del" onclick="pinDel()">&#9003;</button>
+    <button class="pin-key" onclick="pinPress('0')">0</button>
+    <div></div>
+  </div>
+</div>
+
+<!-- ═══ APPLICATION ══════════════════════════════════════════ -->
+<div id="app" style="display:none;">
+
+<!-- ── HEADER ──────────────────────────────────────────────── -->
+<div class="header">
+  <div class="hdr-top">
+    <div class="brand">Mon<span>Compte</span></div>
+    <div class="hdr-date" id="hdr-date"></div>
+  </div>
+  <div id="account-switcher" class="account-switcher"></div>
+  <div class="balance-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+      <div class="bal-label" id="bal-label">Bilan du mois</div>
+      <div class="mode-toggle" id="mode-toggle">
+        <button class="mode-btn mode-on" id="mode-reel"  onclick="setViewMode('reel')">Réel</button>
+        <button class="mode-btn"         id="mode-prev"  onclick="setViewMode('previsionnel')">Prévision</button>
+      </div>
+    </div>
+    <div class="bal-amount" id="bal-main">0,00 &euro;</div>
+    <div class="bal-cards">
+      <div class="bal-mini">
+        <div class="bal-mini-lbl" id="bal-inc-lbl">Revenus</div>
+        <div class="bal-mini-val pos" id="bal-inc">0 &euro;</div>
+      </div>
+      <div class="bal-mini">
+        <div class="bal-mini-lbl" id="bal-exp-lbl">Dépenses</div>
+        <div class="bal-mini-val neg" id="bal-exp">0 &euro;</div>
+      </div>
+      <div class="bal-mini">
+        <div class="bal-mini-lbl" id="bal-month-lbl">Ce mois</div>
+        <div class="bal-mini-val" id="bal-month">0 &euro;</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── DASHBOARD ───────────────────────────────────────────── -->
+<div class="section active" id="sec-dash">
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">&#9664;</button>
+    <span class="month-label" id="mn-lbl">-</span>
+    <button onclick="changeMonth(1)">&#9654;</button>
+  </div>
+  <div class="s-title">Transactions récentes</div>
+  <div id="tx-list"></div>
+</div>
+
+<!-- ── AJOUTER ─────────────────────────────────────────────── -->
+<div class="section" id="sec-add">
+  <div class="type-toggle">
+    <button class="type-btn active" data-kind="expense" onclick="setFormKind('expense')">Dépense</button>
+    <button class="type-btn"        data-kind="income"  onclick="setFormKind('income')">Revenu</button>
+    <button class="type-btn"        data-kind="transfer" onclick="setFormKind('transfer')">Virement</button>
+  </div>
+
+  <form id="add-form" class="form-card" onsubmit="submitAddForm(event)">
+    <div class="field">
+      <label>Description</label>
+      <input type="text" id="add-desc" placeholder="Ex : Loyer, EDF, Salaire…" required>
+    </div>
+    <div class="field">
+      <label>Montant (€)</label>
+      <input type="number" id="add-amount" placeholder="0,00" min="0.01" step="0.01" inputmode="decimal" required>
+    </div>
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="add-date" required>
+    </div>
+    <div class="field">
+      <label>Catégorie</label>
+      <input type="text" id="add-cat" placeholder="alimentation, transport…" list="cat-list">
+      <datalist id="cat-list">
+        <option value="salaire"><option value="loyer"><option value="alimentation">
+        <option value="transport"><option value="sante"><option value="loisirs">
+        <option value="abonnement"><option value="restaurant"><option value="autre">
+      </datalist>
+    </div>
+
+    <!-- Section virement (cachée par défaut) -->
+    <div id="transfer-section" style="display:none;">
+      <div class="field">
+        <label>Compte destinataire</label>
+        <select id="add-transfer-to"></select>
+      </div>
+    </div>
+
+    <!-- Options (cachées en mode virement) -->
+    <div id="add-options">
+      <label class="field-check" for="add-planned">
+        <input type="checkbox" id="add-planned">
+        <div>
+          <div>Transaction prévue</div>
+          <small>À décocher quand elle est effectuée</small>
+        </div>
+      </label>
+      <label class="field-check" for="add-rec">
+        <input type="checkbox" id="add-rec">
+        <div>
+          <div>Dépense récurrente</div>
+          <small>Se renouvelle automatiquement chaque mois</small>
+        </div>
+      </label>
+    </div>
+
+    <button type="submit" class="submit-btn exp" id="add-submit-btn">Enregistrer</button>
+  </form>
+</div>
+
+<!-- ── STATISTIQUES ────────────────────────────────────────── -->
+<div class="section" id="sec-stats">
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">&#9664;</button>
+    <span class="month-label" id="mn-lbl-stats">-</span>
+    <button onclick="changeMonth(1)">&#9654;</button>
+  </div>
+  <!-- Contenu injecté par renderStats() -->
+</div>
+
+<!-- ── RÉCURRENTS ──────────────────────────────────────────── -->
+<div class="section" id="sec-rec">
+  <!-- Contenu injecté par renderRec() -->
+</div>
+
+<!-- ── ANALYSE ─────────────────────────────────────────────── -->
+<div class="section" id="sec-analyse">
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">&#9664;</button>
+    <span class="month-label" id="mn-lbl-analyse">-</span>
+    <button onclick="changeMonth(1)">&#9654;</button>
+  </div>
+
+  <!-- Solde bancaire réel -->
+  <div class="card">
+    <div class="card-title">Solde bancaire réel</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">
+      Entrez votre vrai solde — l'app projette ensuite chaque mois.
+    </div>
+    <div class="inline-row">
+      <div class="field" style="margin-bottom:0;flex:1;">
+        <input type="number" id="inp-balref" placeholder="Ex: 1852.22" step="0.01">
+      </div>
+      <button class="small-btn" onclick="saveBalRef()">Définir</button>
+    </div>
+    <div id="balref-display" style="display:none;margin-top:12px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
+  </div>
+
+  <!-- Analyse par catégorie (injectée par renderAnalyse) -->
+  <div id="analyse-by-cat"></div>
+
+  <!-- Données -->
+  <div class="card">
+    <div class="card-title">Données</div>
+    <div class="data-btns">
+      <button onclick="exportJSON()" class="small-btn" style="background:var(--blue);">Export JSON</button>
+      <button onclick="importJSON()" class="small-btn" style="background:var(--blue);opacity:.75;">Import JSON</button>
+    </div>
+    <button onclick="clearCurrentAccountTxs()"
+      style="width:100%;background:none;border:1.5px solid #f59e0b;color:#f59e0b;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">
+      Vider le compte actif
+    </button>
+    <button onclick="resetAll()"
+      style="width:100%;background:none;border:1.5px solid #c8102e;color:#c8102e;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">
+      Supprimer toutes les données
+    </button>
+  </div>
+</div>
+
+<!-- ═══ MODAL TRANSACTION ════════════════════════════════════ -->
+<div class="modal-overlay" id="tx-modal" onclick="if(event.target===this)closeTxModal()">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="tx-modal-title">Transaction</div>
+    <div id="tx-modal-amount" style="text-align:center;font-size:28px;font-weight:700;margin:8px 0;"></div>
+    <div id="tx-modal-date"   style="text-align:center;font-size:13px;color:var(--text2);margin-bottom:4px;"></div>
+    <div id="tx-modal-cat"    style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:10px;"></div>
+    <div id="tx-modal-badges" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;"></div>
+    <div id="tx-modal-actions" class="modal-btns"></div>
+    <div id="tx-modal-edit-form" style="display:none;margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- ═══ BOTTOM NAV ═══════════════════════════════════════════ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-section="dash"    onclick="navGo('dash')">
+    <span class="nav-icon">&#127968;</span>Accueil
+  </button>
+  <button class="nav-btn" data-section="add"     onclick="navGo('add');initAddForm()">
+    <span class="nav-icon">+</span>Ajouter
+  </button>
+  <button class="nav-btn" data-section="stats"   onclick="navGo('stats')">
+    <span class="nav-icon">&#128202;</span>Stats
+  </button>
+  <button class="nav-btn" data-section="rec"     onclick="navGo('rec')">
+    <span class="nav-icon">&#128260;</span>Récurrents
+  </button>
+  <button class="nav-btn" data-section="analyse" onclick="navGo('analyse')">
+    <span class="nav-icon">&#128161;</span>Analyse
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+</div><!-- #app -->
+
+<script type="module" src="/main.ts"></script>
+</body>
+</html>

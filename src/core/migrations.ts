@@ -74,7 +74,7 @@ function normKind(type: string, transfer?: boolean): Transaction['kind'] {
 // ── Migration Transaction v1 → v2 ────────────────────────────
 
 function migrateTransaction(t: V1Transaction, defaultAccountId: string): Transaction {
-  return {
+  const tx: Transaction = {
     id:          (String(t.id)) as TxId,
     accountId:   (t.accountId || defaultAccountId) as AccountId,
     date:        t.date as IsoDate,
@@ -84,9 +84,10 @@ function migrateTransaction(t: V1Transaction, defaultAccountId: string): Transac
     desc:        t.desc || '',
     planned:     t.planned === true,
     recurring:   t.recurring === true,
-    recId:       t.recId    ? String(t.recId)    as RecId      : undefined,
-    transferId:  t.transferId ? t.transferId as any            : undefined,
   };
+  if (t.recId)     tx.recId     = String(t.recId) as RecId;
+  if (t.transferId) tx.transferId = t.transferId as import('./types').TransferId;
+  return tx;
 }
 
 // ── Migration Rec v1 → v2 ─────────────────────────────────────

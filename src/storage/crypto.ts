@@ -24,8 +24,9 @@ export async function deriveKey(pin: string, salt: Uint8Array): Promise<CryptoKe
   const keyMat = await crypto.subtle.importKey(
     'raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']
   );
+  const saltBuf = salt.buffer instanceof ArrayBuffer ? salt : new Uint8Array(salt);
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: saltBuf as unknown as BufferSource, iterations: 100_000, hash: 'SHA-256' },
     keyMat,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -39,7 +40,7 @@ export async function encrypt(key: CryptoKey, data: unknown): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const enc = new TextEncoder();
   const cipherBuf = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: 'AES-GCM', iv: iv as unknown as BufferSource },
     key,
     enc.encode(JSON.stringify(data))
   );
@@ -54,9 +55,9 @@ export async function decrypt<T = unknown>(key: CryptoKey, stored: string): Prom
   const ivHex   = stored.slice(0, colonIdx);
   const dataHex = stored.slice(colonIdx + 1);
   const dec = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: fromHex(ivHex) },
+    { name: 'AES-GCM', iv: fromHex(ivHex) as unknown as BufferSource },
     key,
-    fromHex(dataHex)
+    fromHex(dataHex) as unknown as BufferSource
   );
   return JSON.parse(new TextDecoder().decode(dec)) as T;
 }

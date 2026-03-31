@@ -8,7 +8,6 @@
     "exactOptionalPropertyTypes": true,
     "lib": ["ES2020", "DOM"],
     "outDir": "./dist",
-    "rootDir": "./src",
     "skipLibCheck": true
   },
   "include": ["src/**/*", "tests/**/*"],
