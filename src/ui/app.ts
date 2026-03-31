@@ -36,13 +36,14 @@ export async function boot(): Promise<void> {
   if (Store.isFirstLaunch()) {
     let initialData: AppData | undefined;
 
-    // Priorité 1 : backup Capacitor sur le téléphone
-    const fromFilesystem = await restoreFromFilesystem();
-    if (fromFilesystem) {
-      initialData = fromFilesystem;
-    } else if (Store.hasV1Data()) {
-      // Priorité 2 : données v1 chiffrées dans localStorage
+    // Priorité 1 : données v1 chiffrées dans localStorage (plus récentes)
+    if (Store.hasV1Data()) {
       initialData = await migrateFromV1(pin);
+    }
+    // Priorité 2 : backup Filesystem si pas de données v1
+    if (!initialData) {
+      const fromFilesystem = await restoreFromFilesystem();
+      if (fromFilesystem) initialData = fromFilesystem;
     }
 
     const ok = await Store.init(pin, initialData);

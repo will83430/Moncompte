@@ -8,6 +8,7 @@ import { getState, setState } from './app';
 import { Nav } from './router';
 import { toast } from './toast';
 import { fmt, inputToCents } from './format';
+import { getCatDef } from '../core/categories';
 
 // ── Solde bancaire réel ───────────────────────────────────────
 
@@ -114,13 +115,14 @@ export function renderAnalyse(
     <div class="card">
       <div class="card-title">Dépenses par catégorie — ${fmt(total)}</div>
       <div class="analyse-list">
-        ${sorted.map(([cat, cents]) => {
-          const pct = total > 0 ? Math.round((cents / total) * 100) : 0;
+        ${sorted.map(([catId, cents]) => {
+          const pct    = total > 0 ? Math.round((cents / total) * 100) : 0;
+          const catDef = getCatDef(catId, data.customCats);
           return `
             <div class="analyse-item">
-              <div class="analyse-cat">${cat}</div>
+              <div class="analyse-cat">${catDef.icon} ${catDef.label}</div>
               <div class="analyse-bar-wrap">
-                <div class="analyse-bar" style="width:${pct}%"></div>
+                <div class="analyse-bar" style="width:${pct}%;background:${catDef.color}"></div>
               </div>
               <div class="analyse-amount">${fmt(cents)} <span class="analyse-pct">${pct}%</span></div>
             </div>

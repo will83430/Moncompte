@@ -9,6 +9,13 @@ export function fmt(cents: number): string {
   });
 }
 
+/** Formate des centimes sans signe (ex: 1050 → "10,50 €") — pour revenus/dépenses */
+export function fmtAbs(cents: number): string {
+  return (Math.abs(cents) / 100).toLocaleString('fr-FR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  }) + ' €';
+}
+
 /** Formate des centimes en format compact (ex: 1050 → "+10,50 €" ou "-10,50 €") */
 export function fmtCompact(cents: number): string {
   const abs = Math.abs(cents / 100).toLocaleString('fr-FR', {
@@ -30,6 +37,14 @@ export function fmtDateLong(iso: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
+}
+
+/** Résout un ID de catégorie en label lisible */
+export function resolveCat(catId: string, customCats: import('../core/types').CustomCategory[]): string {
+  const custom = customCats.find(c => c.id === catId);
+  if (custom) return custom.label;
+  // Catégories système : remplacer underscores et capitaliser
+  return catId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 /** Centimes → string sans signe ni € (pour inputs) */

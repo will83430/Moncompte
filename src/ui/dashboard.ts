@@ -7,8 +7,11 @@ import { confirmTransaction, revertToPlanned, deleteTransaction, removeTransfer 
 import { setState } from './app';
 import { toast } from './toast';
 import { fmt, fmtDateShort } from './format';
+import { getCatDef } from '../core/categories';
 
 // ── Rendu principal ───────────────────────────────────────────
+
+let _dashData: AppData | null = null;
 
 export function renderDashboard(
   data:      AppData,
@@ -16,6 +19,7 @@ export function renderDashboard(
   accountId: AccountId,
   mode:      'reel' | 'previsionnel'
 ) {
+  _dashData = data;
   const list = document.getElementById('tx-list');
   if (!list) return;
 
@@ -45,36 +49,37 @@ export function renderDashboard(
 
 function renderGroup(date: string, txs: Transaction[]): string {
   return `
-    <div class="tx-group">
-      <div class="tx-date-header">${fmtDateShort(date)}</div>
-      ${txs.map(renderTx).join('')}
-    </div>
+    <div class="s-title">${fmtDateShort(date)}</div>
+    ${txs.map(t => renderTx(t, _dashData!)).join('')}
   `;
 }
 
-function renderTx(t: Transaction): string {
+function renderTx(t: Transaction, data: AppData): string {
   const isTransfer = t.kind === 'transfer_out' || t.kind === 'transfer_in';
-  const isIncome   = t.kind === 'income';
-  const isExpense  = t.kind === 'expense';
+  const isIncome   = t.kind === 'income' || t.kind === 'transfer_in';
   const isPlanned  = t.planned;
 
   const amountStr  = fmt(t.amountCents);
-  const sign       = isIncome || t.kind === 'transfer_in' ? '+' : '-';
-  const colorClass = isIncome ? 'pos' : isExpense ? 'neg' : 'transfer';
+  const sign       = isIncome ? '+' : '-';
+  const amtCls     = isIncome ? 'inc' : 'exp';
+  const cat        = getCatDef(t.cat, data.customCats);
+  const icoColor   = cat.color + '22'; // couleur avec 13% opacité
 
   return `
-    <div class="tx-item${isPlanned ? ' planned' : ''}${isTransfer ? ' transfer' : ''}"
-         onclick="openTxDetail('${t.id}')">
-      <div class="tx-cat-icon">${getCatIcon(t.cat)}</div>
+    <div class="tx-item${isPlanned ? ' tx-planned' : ''}" onclick="openTxDetail('${t.id}')">
+      <div class="tx-ico" style="background:${icoColor}">${cat.icon}</div>
       <div class="tx-body">
-        <div class="tx-desc">${escHtml(t.desc)}</div>
+        <div class="tx-desc">${escHtml(t.desc || cat.label)}</div>
         <div class="tx-meta">
-          ${isPlanned ? '<span class="badge-planned">Prévu</span>' : ''}
+          ${cat.label}
+          ${isPlanned  ? '<span class="badge-planned">Prévu</span>' : ''}
           ${t.recurring ? '<span class="badge-rec">↺</span>' : ''}
-          ${isTransfer ? '<span class="badge-transfer">Virement</span>' : ''}
+          ${isTransfer  ? '<span class="badge-rec">↔</span>' : ''}
         </div>
       </div>
-      <div class="tx-amount ${colorClass}">${sign}${amountStr}</div>
+      <div class="tx-right">
+        <div class="tx-amt ${amtCls}">${sign}${amountStr}</div>
+      </div>
     </div>
   `;
 }
@@ -132,11 +137,3 @@ function escHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function getCatIcon(cat: string): string {
-  const icons: Record<string, string> = {
-    salaire: '💼', loyer: '🏠', courses: '🛒', restaurant: '🍽️',
-    transport: '🚗', sante: '💊', loisirs: '🎭', abonnement: '📱',
-    transfer: '↔️', autre: '•',
-  };
-  return icons[cat] ?? '•';
-}

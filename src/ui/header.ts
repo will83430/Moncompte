@@ -4,7 +4,7 @@
 
 import { AppData, AccountId, MonthKey } from '../core/types';
 import { getBankBalance, getProjectedBalance, getMonthSummary } from '../core/service';
-import { fmt, fmtCompact } from './format';
+import { fmt, fmtCompact, fmtAbs } from './format';
 
 export function renderHeader(
   data:      AppData,
@@ -58,22 +58,21 @@ function renderBalance(
       el('bal-inc-lbl')!.textContent = 'Revenus';
       el('bal-exp-lbl')!.textContent = 'Dépenses';
       el('bal-month-lbl')!.textContent = 'Bilan';
-      el('bal-inc')!.textContent     = fmtCompact(summary.incomeCents);
-      el('bal-exp')!.textContent     = fmtCompact(summary.expenseCents);
+      el('bal-inc')!.textContent     = fmtAbs(summary.incomeCents);
+      el('bal-exp')!.textContent     = fmtAbs(summary.expenseCents);
       el('bal-month')!.textContent   = fmtCompact(summary.bilanCents);
       setSign('bal-month', summary.bilanCents);
     } else {
       // Gros chiffre = Solde prévu
       const projBalance = getProjectedBalance(data, month, accountId);
-      const realSummary = getMonthSummary(data, month, accountId, 'reel');
       const planSummary = getMonthSummary(data, month, accountId, 'previsionnel');
       el('bal-label')!.textContent   = 'Solde prévu';
       el('bal-main')!.innerHTML      = projBalance !== null ? fmt(projBalance) : '—';
       el('bal-inc-lbl')!.textContent = 'Revenus prev.';
       el('bal-exp-lbl')!.textContent = 'Dépenses prev.';
       el('bal-month-lbl')!.textContent = 'Bilan prev.';
-      el('bal-inc')!.textContent     = fmtCompact(planSummary.incomeCents);
-      el('bal-exp')!.textContent     = fmtCompact(planSummary.expenseCents);
+      el('bal-inc')!.textContent     = fmtAbs(planSummary.incomeCents);
+      el('bal-exp')!.textContent     = fmtAbs(planSummary.expenseCents);
       el('bal-month')!.textContent   = fmtCompact(planSummary.bilanCents);
       setSign('bal-month', planSummary.bilanCents);
     }
@@ -82,8 +81,8 @@ function renderBalance(
     const summary = getMonthSummary(data, month, accountId, mode);
     el('bal-label')!.textContent = mode === 'reel' ? 'Bilan du mois' : 'Bilan prévu';
     el('bal-main')!.innerHTML    = fmtCompact(summary.bilanCents);
-    el('bal-inc')!.textContent   = fmtCompact(summary.incomeCents);
-    el('bal-exp')!.textContent   = fmtCompact(summary.expenseCents);
+    el('bal-inc')!.textContent   = fmtAbs(summary.incomeCents);
+    el('bal-exp')!.textContent   = fmtAbs(summary.expenseCents);
     el('bal-month')!.textContent = fmtCompact(summary.bilanCents);
     setSign('bal-main',  summary.bilanCents);
     setSign('bal-month', summary.bilanCents);
@@ -100,9 +99,11 @@ function setSign(id: string, cents: number) {
 // ── Navigation mois ───────────────────────────────────────────
 
 function renderMonthNav(month: MonthKey) {
-  const el = document.getElementById('mn-lbl');
-  if (!el) return;
   const [y, m] = month.split('-').map(Number) as [number, number];
   const label = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-  el.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+  const text  = label.charAt(0).toUpperCase() + label.slice(1);
+  ['mn-lbl', 'mn-lbl-stats', 'mn-lbl-analyse'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  });
 }
