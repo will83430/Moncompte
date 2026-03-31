@@ -7,6 +7,7 @@ import { migrateV1toV2 } from '../core/migrations';
 import { AppData, Account, CustomCategory } from '../core/types';
 import { Router } from './router';
 import { PinUI } from './pin';
+import { scheduleAutoBackup, restoreFromFilesystem } from '../services/backup';
 
 // ── État global réactif ───────────────────────────────────────
 // Un seul objet mutable, toutes les mutations passent par setState()
@@ -21,6 +22,7 @@ export function getState(): AppData {
 export async function setState(next: AppData): Promise<void> {
   _state = next;
   await Store.save(next);
+  scheduleAutoBackup(next);
   Router.refresh();
 }
 
@@ -30,11 +32,16 @@ export async function boot(): Promise<void> {
   const pin = await PinUI.prompt();
   if (!pin) return; // ne devrait pas arriver
 
-  // Premier lancement v2 : migration éventuelle depuis v1
+  // Premier lancement v2 : restauration Filesystem ou migration v1
   if (Store.isFirstLaunch()) {
     let initialData: AppData | undefined;
 
-    if (Store.hasV1Data()) {
+    // Priorité 1 : backup Capacitor sur le téléphone
+    const fromFilesystem = await restoreFromFilesystem();
+    if (fromFilesystem) {
+      initialData = fromFilesystem;
+    } else if (Store.hasV1Data()) {
+      // Priorité 2 : données v1 chiffrées dans localStorage
       initialData = await migrateFromV1(pin);
     }
 
