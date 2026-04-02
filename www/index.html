@@ -10,14 +10,15 @@
 <link rel="manifest" href="/assets/manifest-CxthAheK.json">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="data:,">
-  <script type="module" crossorigin src="/assets/index-DPuTHGQc.js"></script>
+  <script type="module" crossorigin src="/assets/index-DRCi9H2K.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-lhHHWwHU.js">
+  <link rel="modulepreload" crossorigin href="/assets/dist-Ds6UhmAw.js">
   <link rel="modulepreload" crossorigin href="/assets/service-D8kZS9E4.js">
   <link rel="modulepreload" crossorigin href="/assets/migrations-BvzvVY86.js">
   <link rel="modulepreload" crossorigin href="/assets/toast-CJZpEd7x.js">
-  <link rel="modulepreload" crossorigin href="/assets/app-QBsFJik2.js">
-  <link rel="modulepreload" crossorigin href="/assets/txModal-BOyxhnO2.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-D_7Wqyo9.css">
+  <link rel="modulepreload" crossorigin href="/assets/app-CHo6vwi3.js">
+  <link rel="modulepreload" crossorigin href="/assets/txModal-0i4JjDiR.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-C_6XigVH.css">
 </head>
 <body>
 
@@ -104,7 +105,10 @@
       <button onclick="generateRec()" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Importer</button>
     </div>
   </div>
-  <div class="s-title">Transactions récentes</div>
+  <div class="tx-search-wrap">
+    <input type="search" id="tx-search" placeholder="🔍 Rechercher une transaction…"
+           oninput="searchTx(this.value)" autocomplete="off">
+  </div>
   <div id="tx-list"></div>
 </div>
 
@@ -284,6 +288,23 @@
         <button onclick="saveCustomCat()" class="modal-btn-save" style="flex:1;">Enregistrer</button>
       </div>
     </div>
+  </div>
+
+  <!-- Sync WiFi -->
+  <div class="card">
+    <div class="card-title">Synchronisation WiFi</div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Lance <code>node sync-server.mjs</code> sur le PC, puis scanne le QR ou entre l'adresse.</p>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input id="sync-url" type="url" placeholder="http://192.168.1.x:7789"
+        style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:'Inter',sans-serif;background:var(--card);">
+      <button onclick="syncScanQr()"
+        style="padding:10px 14px;border-radius:10px;border:none;background:var(--teal);color:#fff;font-size:18px;cursor:pointer;">📷</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="syncFromPc()" class="small-btn" style="flex:1;background:var(--blue);">⬇ PC → Tél</button>
+      <button onclick="syncToPc()"   class="small-btn" style="flex:1;background:var(--blue);opacity:.75;">⬆ Tél → PC</button>
+    </div>
+    <div id="sync-status" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px;"></div>
   </div>
 
   <!-- Données -->

@@ -112,6 +112,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 .s-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;padding:16px 14px 8px;display:flex;align-items:center;gap:8px;}
 .s-title::after{content:'';flex:1;height:1px;background:var(--border);}
 
+/* ─── SEARCH ─── */
+.tx-search-wrap{padding:10px 14px 4px;}
+.tx-search-wrap input{width:100%;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;font-family:'Inter',sans-serif;font-size:15px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;}
+.tx-search-wrap input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,133,122,0.08);}
+
 /* ─── TX LIST ─── */
 .tx-item{display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--white);border-bottom:1px solid var(--border);transition:background .12s;}
 .tx-item:first-child{border-top:1px solid var(--border);}

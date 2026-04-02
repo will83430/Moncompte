@@ -17,6 +17,7 @@ import './ui/toast';
 // Services exposés globalement
 import { exportJSON, importJSON, exportCSV } from './services/backup';
 import { getState, setState } from './ui/app';
+import { getSyncUrl, saveSyncUrl, fetchFromPc, pushToPc } from './services/sync';
 
 (window as any).exportJSON = () => exportJSON(getState());
 (window as any).exportCSV  = () => exportCSV(getState());
@@ -53,6 +54,72 @@ import { getState, setState } from './ui/app';
     toast('Erreur : ' + (e?.message ?? String(e)));
   }
 };
+
+// ── Sync WiFi ─────────────────────────────────────────────────
+
+function _syncStatus(msg: string) {
+  const el = document.getElementById('sync-status');
+  if (el) el.textContent = msg;
+}
+
+function _syncGetUrl(): string {
+  const input = document.getElementById('sync-url') as HTMLInputElement | null;
+  const url = input?.value.trim() || getSyncUrl();
+  if (!url) { _syncStatus('⚠ Entrez l\'adresse du serveur PC'); return ''; }
+  if (input && url) { saveSyncUrl(url); input.value = url; }
+  return url;
+}
+
+(window as any).syncFromPc = async () => {
+  const { toast } = await import('./ui/toast');
+  const url = _syncGetUrl();
+  if (!url) return;
+  _syncStatus('Connexion au serveur…');
+  try {
+    const data = await fetchFromPc(url);
+    await setState(data);
+    _syncStatus(`✓ ${data.txs.length} transactions importées depuis le PC`);
+    toast(`✓ Sync PC → Tél réussie (${data.txs.length} tx)`);
+  } catch (e: any) {
+    _syncStatus('Erreur : ' + (e?.message ?? String(e)));
+    toast('Erreur sync : ' + (e?.message ?? String(e)));
+  }
+};
+
+(window as any).syncToPc = async () => {
+  const { toast } = await import('./ui/toast');
+  const url = _syncGetUrl();
+  if (!url) return;
+  _syncStatus('Envoi vers le PC…');
+  try {
+    await pushToPc(url, getState());
+    _syncStatus('✓ Données envoyées vers le PC');
+    toast('✓ Sync Tél → PC réussie');
+  } catch (e: any) {
+    _syncStatus('Erreur : ' + (e?.message ?? String(e)));
+    toast('Erreur sync : ' + (e?.message ?? String(e)));
+  }
+};
+
+(window as any).syncScanQr = async () => {
+  // Sur Android, on ouvre un prompt simple (pas de scanner natif sans plugin dédié)
+  const current = getSyncUrl();
+  const url = window.prompt('Adresse du serveur PC (ex: http://192.168.1.x:7789)', current || 'http://');
+  if (!url) return;
+  saveSyncUrl(url);
+  const input = document.getElementById('sync-url') as HTMLInputElement | null;
+  if (input) input.value = url;
+  _syncStatus('Adresse enregistrée');
+};
+
+// Restaurer l'URL de sync sauvegardée au démarrage
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = getSyncUrl();
+  if (saved) {
+    const input = document.getElementById('sync-url') as HTMLInputElement | null;
+    if (input) input.value = saved;
+  }
+});
 
 // Lancer l'application dès que le DOM est prêt
 if (document.readyState === 'loading') {
