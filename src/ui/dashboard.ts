@@ -4,7 +4,8 @@
 
 import { AppData, AccountId, MonthKey, Transaction, TxId } from '../core/types';
 import { confirmTransaction, revertToPlanned, deleteTransaction, removeTransfer } from '../core/service';
-import { setState } from './app';
+import { currentMonthKey } from '../core/balance';
+import { setState, getState } from './app';
 import { toast } from './toast';
 import { fmt, fmtDateShort } from './format';
 import { getCatDef } from '../core/categories';
@@ -22,6 +23,26 @@ export function renderDashboard(
   _dashData = data;
   const list = document.getElementById('tx-list');
   if (!list) return;
+
+  // Bannière récurrentes en attente
+  const alertEl  = document.getElementById('rec-alert');
+  const alertTxt = document.getElementById('rec-alert-txt');
+  if (alertEl && alertTxt) {
+    // Bannière uniquement en prévision ET sur un mois futur (pas le mois courant)
+    const isFuture = mode === 'previsionnel' && month > currentMonthKey();
+    const pending = isFuture ? data.recs.filter(r =>
+      r.accountId === accountId &&
+      r.active &&
+      !data.txs.some(t => t.recId === r.id && t.date.startsWith(month))
+    ) : [];
+    if (pending.length > 0) {
+      const mLabel = new Date(month + '-01').toLocaleDateString('fr-FR', { month: 'long' });
+      alertEl.style.display = 'block';
+      alertTxt.textContent  = `${pending.length} récurrente${pending.length > 1 ? 's' : ''} à importer pour ${mLabel}`;
+    } else {
+      alertEl.style.display = 'none';
+    }
+  }
 
   const txs = data.txs
     .filter(t => t.accountId === accountId && t.date.startsWith(month))
@@ -65,14 +86,34 @@ function renderTx(t: Transaction, data: AppData): string {
   const cat        = getCatDef(t.cat, data.customCats);
   const icoColor   = cat.color + '22'; // couleur avec 13% opacité
 
+  if (isPlanned) {
+    return `
+      <div class="tx-item tx-planned" onclick="openTxDetail('${t.id}')">
+        <button class="tx-confirm" onclick="event.stopPropagation();confirmTx('${t.id}')" title="Valider">✓</button>
+        <div class="tx-ico" style="background:${icoColor};opacity:.5">${cat.icon}</div>
+        <div class="tx-body">
+          <div class="tx-desc">${escHtml(t.desc || cat.label)} <span class="badge-planned">Prévu</span></div>
+          <div class="tx-meta">
+            ${cat.label}
+            ${t.recurring ? '<span class="badge-rec">↺</span>' : ''}
+            ${isTransfer  ? '<span class="badge-rec">↔</span>' : ''}
+          </div>
+        </div>
+        <div class="tx-right">
+          <div class="tx-amt ${amtCls}" style="opacity:.5">${sign}${amountStr}</div>
+        </div>
+        <button class="tx-del" onclick="event.stopPropagation();deleteTx('${t.id}')">✕</button>
+      </div>
+    `;
+  }
+
   return `
-    <div class="tx-item${isPlanned ? ' tx-planned' : ''}" onclick="openTxDetail('${t.id}')">
+    <div class="tx-item" onclick="openTxDetail('${t.id}')">
       <div class="tx-ico" style="background:${icoColor}">${cat.icon}</div>
       <div class="tx-body">
         <div class="tx-desc">${escHtml(t.desc || cat.label)}</div>
         <div class="tx-meta">
           ${cat.label}
-          ${isPlanned  ? '<span class="badge-planned">Prévu</span>' : ''}
           ${t.recurring ? '<span class="badge-rec">↺</span>' : ''}
           ${isTransfer  ? '<span class="badge-rec">↔</span>' : ''}
         </div>
@@ -80,6 +121,7 @@ function renderTx(t: Transaction, data: AppData): string {
       <div class="tx-right">
         <div class="tx-amt ${amtCls}">${sign}${amountStr}</div>
       </div>
+      <button class="tx-del" onclick="event.stopPropagation();deleteTx('${t.id}')">✕</button>
     </div>
   `;
 }
@@ -94,29 +136,22 @@ export function openTxDetail(id: TxId) {
 // ── Actions ───────────────────────────────────────────────────
 
 export async function confirmTx(id: TxId) {
-  if (!confirm('Valider cette transaction comme réelle ?')) return;
-  const { getState } = await import('./app');
   await setState(confirmTransaction(getState(), id));
   toast('✓ Transaction validée');
 }
 
 export async function revertTx(id: TxId) {
-  if (!confirm('Remettre cette transaction en "Prévu" ?')) return;
-  const { getState } = await import('./app');
   await setState(revertToPlanned(getState(), id));
   toast('↩ Transaction remise en prévu');
 }
 
 export async function deleteTx(id: TxId) {
-  if (!confirm('Supprimer cette transaction ?')) return;
-  const { getState } = await import('./app');
   const state = getState();
   const tx = state.txs.find(t => t.id === id);
   if (!tx) return;
 
   let next = state;
   if (tx.transferId) {
-    if (!confirm('Ce virement a deux jambes. Supprimer les deux ?')) return;
     next = removeTransfer(next, tx.transferId);
   } else {
     next = deleteTransaction(next, id);

@@ -7,14 +7,21 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>MonCarnetCompte</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="/assets/manifest-CxthAheK.json">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="css/app.css?v=10">
+  <script type="module" crossorigin src="/assets/index-DPuTHGQc.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-lhHHWwHU.js">
+  <link rel="modulepreload" crossorigin href="/assets/service-D8kZS9E4.js">
+  <link rel="modulepreload" crossorigin href="/assets/migrations-BvzvVY86.js">
+  <link rel="modulepreload" crossorigin href="/assets/toast-CJZpEd7x.js">
+  <link rel="modulepreload" crossorigin href="/assets/app-QBsFJik2.js">
+  <link rel="modulepreload" crossorigin href="/assets/txModal-BOyxhnO2.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-D_7Wqyo9.css">
 </head>
 <body>
 
-<!-- ECRAN PIN -->
+<!-- ═══ ÉCRAN PIN ═══════════════════════════════════════════ -->
 <div id="pin-screen">
   <div class="pin-header">
     <div class="pin-logo">MonCarnetCompte</div>
@@ -27,28 +34,26 @@
     <div class="pin-dot" id="dot-3"></div>
   </div>
   <div class="pin-error" id="pin-error"></div>
-  <div class="pin-migrate" id="pin-migrate-msg" style="display:none;">
-    Des donnees existantes ont ete detectees. Elles seront chiffrees avec votre nouveau PIN.
-  </div>
   <div class="pin-pad">
-    <button class="pin-key" onclick="PinManager.press('1')">1</button>
-    <button class="pin-key" onclick="PinManager.press('2')">2</button>
-    <button class="pin-key" onclick="PinManager.press('3')">3</button>
-    <button class="pin-key" onclick="PinManager.press('4')">4</button>
-    <button class="pin-key" onclick="PinManager.press('5')">5</button>
-    <button class="pin-key" onclick="PinManager.press('6')">6</button>
-    <button class="pin-key" onclick="PinManager.press('7')">7</button>
-    <button class="pin-key" onclick="PinManager.press('8')">8</button>
-    <button class="pin-key" onclick="PinManager.press('9')">9</button>
-    <button class="pin-key pin-key-del" onclick="PinManager.del()">&#9003;</button>
-    <button class="pin-key" onclick="PinManager.press('0')">0</button>
+    <button class="pin-key" onclick="pinPress('1')">1</button>
+    <button class="pin-key" onclick="pinPress('2')">2</button>
+    <button class="pin-key" onclick="pinPress('3')">3</button>
+    <button class="pin-key" onclick="pinPress('4')">4</button>
+    <button class="pin-key" onclick="pinPress('5')">5</button>
+    <button class="pin-key" onclick="pinPress('6')">6</button>
+    <button class="pin-key" onclick="pinPress('7')">7</button>
+    <button class="pin-key" onclick="pinPress('8')">8</button>
+    <button class="pin-key" onclick="pinPress('9')">9</button>
+    <button class="pin-key pin-key-del" onclick="pinDel()">&#9003;</button>
+    <button class="pin-key" onclick="pinPress('0')">0</button>
     <div></div>
   </div>
 </div>
 
-<!-- APPLICATION -->
+<!-- ═══ APPLICATION ══════════════════════════════════════════ -->
 <div id="app" style="display:none;">
 
+<!-- ── HEADER ──────────────────────────────────────────────── -->
 <div class="header">
   <div class="hdr-top">
     <div class="brand">Mon<span>Compte</span></div>
@@ -59,202 +64,172 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
       <div class="bal-label" id="bal-label">Bilan du mois</div>
       <div class="mode-toggle" id="mode-toggle">
-        <button class="mode-btn mode-on" id="mode-reel" onclick="setViewMode('reel')">Réel</button>
-        <button class="mode-btn" id="mode-prev" onclick="setViewMode('previsionnel')">Prévision</button>
+        <button class="mode-btn mode-on" id="mode-reel"  onclick="setViewMode('reel')">Réel</button>
+        <button class="mode-btn"         id="mode-prev"  onclick="setViewMode('previsionnel')">Prévision</button>
       </div>
     </div>
     <div class="bal-amount" id="bal-main">0,00 &euro;</div>
     <div class="bal-cards">
-      <div class="bal-mini"><div class="bal-mini-lbl" id="bal-inc-lbl">Revenus</div><div class="bal-mini-val pos" id="bal-inc">0 &euro;</div></div>
-      <div class="bal-mini"><div class="bal-mini-lbl" id="bal-exp-lbl">Dépenses</div><div class="bal-mini-val neg" id="bal-exp">0 &euro;</div></div>
-      <div class="bal-mini"><div class="bal-mini-lbl" id="bal-month-lbl">Ce mois</div><div class="bal-mini-val" id="bal-month">0 &euro;</div></div>
+      <div class="bal-mini">
+        <div class="bal-mini-lbl" id="bal-inc-lbl">Revenus</div>
+        <div class="bal-mini-val pos" id="bal-inc">0 &euro;</div>
+      </div>
+      <div class="bal-mini">
+        <div class="bal-mini-lbl" id="bal-exp-lbl">Dépenses</div>
+        <div class="bal-mini-val neg" id="bal-exp">0 &euro;</div>
+      </div>
+      <div class="bal-mini">
+        <div class="bal-mini-lbl" id="bal-month-lbl">Ce mois</div>
+        <div class="bal-mini-val" id="bal-month">0 &euro;</div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- DASHBOARD -->
+<!-- ── DASHBOARD ───────────────────────────────────────────── -->
 <div class="section active" id="sec-dash">
   <div class="month-nav">
     <button onclick="changeMonth(-1)">&#9664;</button>
     <span class="month-label" id="mn-lbl">-</span>
     <button onclick="changeMonth(1)">&#9654;</button>
   </div>
-  <div class="quick-stats" style="display:none">
-    <div class="qs"><div class="qs-val" id="qs-inc"></div></div>
-    <div class="qs"><div class="qs-val" id="qs-exp"></div></div>
-    <div class="qs"><div class="qs-val" id="qs-bal"></div></div>
-  </div>
-  <div style="margin:10px 14px 0;display:flex;gap:8px;">
-    <input type="text" id="tx-search" placeholder="Rechercher..." oninput="onSearch(this.value)"
-      style="flex:1;min-width:0;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);outline:none;">
-    <button onclick="toggleFilters()" id="flt-toggle"
-      style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:0 14px;font-size:18px;cursor:pointer;flex-shrink:0;">⚙</button>
-  </div>
-  <div id="flt-panel" style="display:none;margin:4px 14px 0;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px;">
-    <div style="display:flex;gap:6px;margin-bottom:8px;">
-      <button onclick="setFilterType('all')"     id="flt-all" class="flt-btn flt-on">Tout</button>
-      <button onclick="setFilterType('expense')" id="flt-exp" class="flt-btn">Depenses</button>
-      <button onclick="setFilterType('income')"  id="flt-inc" class="flt-btn">Revenus</button>
-    </div>
-    <select id="flt-cat" onchange="applyFilters()" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;margin-bottom:8px;"></select>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
-      <input type="number" id="flt-min" placeholder="Min €" onchange="applyFilters()" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;">
-      <input type="number" id="flt-max" placeholder="Max €" onchange="applyFilters()" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;">
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
-      <button onclick="setSort('date-desc')" id="srt-dd" class="srt-btn srt-on">Date ↓</button>
-      <button onclick="setSort('date-asc')"  id="srt-da" class="srt-btn">Date ↑</button>
-      <button onclick="setSort('amt-desc')"  id="srt-ad" class="srt-btn">Montant ↓</button>
-      <button onclick="setSort('amt-asc')"   id="srt-aa" class="srt-btn">Montant ↑</button>
-    </div>
-    <button onclick="resetFilters()" style="width:100%;background:none;border:1.5px solid var(--border);border-radius:8px;padding:7px;font-size:12px;color:var(--text3);cursor:pointer;font-family:'Inter',sans-serif;">Réinitialiser les filtres</button>
-  </div>
-  <div id="rec-alert" style="display:none;margin:12px 14px 0;">
+  <!-- Alerte récurrentes à importer -->
+  <div id="rec-alert" style="display:none;margin:0 0 10px;">
     <div style="background:var(--orange-bg);border:1.5px solid var(--orange);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;gap:10px;">
-      <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--orange)">Depenses recurrentes</div><div style="font-size:12px;color:var(--text2)" id="rec-alert-txt"></div></div>
-      <button onclick="applyAllRec()" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Importer</button>
+      <span style="font-size:20px">🔄</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;color:var(--orange)">Récurrentes en attente</div>
+        <div style="font-size:12px;color:var(--text2)" id="rec-alert-txt"></div>
+      </div>
+      <button onclick="generateRec()" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Importer</button>
     </div>
   </div>
-  <div class="s-title">Transactions recentes</div>
+  <div class="s-title">Transactions récentes</div>
   <div id="tx-list"></div>
 </div>
 
-<!-- AJOUTER -->
+<!-- ── AJOUTER ─────────────────────────────────────────────── -->
 <div class="section" id="sec-add">
   <div class="type-toggle">
-    <button class="type-btn act-exp" id="btn-exp" onclick="setType('expense')">Depense</button>
-    <button class="type-btn" id="btn-inc" onclick="setType('income')">Revenu</button>
+    <button class="type-btn active" data-kind="expense"  onclick="setFormKind('expense')">Dépense</button>
+    <button class="type-btn"        data-kind="income"   onclick="setFormKind('income')">Revenu</button>
+    <button class="type-btn"        data-kind="transfer" onclick="setFormKind('transfer')">Virement</button>
   </div>
-  <div class="amount-wrap">
-    <div><span class="amount-prefix">&euro;</span> <input class="amount-input" type="number" id="inp-amt" placeholder="0,00" min="0" step="0.01" inputmode="decimal"></div>
-    <div class="amount-line" id="amt-line"></div>
-  </div>
-  <div class="form-card">
-    <div class="field"><label>Description</label><input type="text" id="inp-desc" placeholder="Ex : Loyer, EDF, Salaire..."></div>
-    <div class="field"><label>Categorie</label><select id="inp-cat"></select></div>
-    <div class="field-row">
-      <div class="field"><label>Date</label><input type="date" id="inp-date"></div>
-      <div class="field"><label>Jour recurrent</label><input type="number" id="inp-recday" placeholder="Ex : 5" min="1" max="28"></div>
+
+  <form id="add-form" class="form-card" onsubmit="submitAddForm(event)">
+    <div class="field">
+      <label>Description</label>
+      <input type="text" id="add-desc" placeholder="Ex : Loyer, EDF, Salaire…" required>
     </div>
     <div class="field">
-      <label class="field-check" for="chk-planned">
-        <input type="checkbox" id="chk-planned">
-        <div><div>Transaction prevue</div><small>A cocher quand elle sera effectuee</small></div>
-      </label>
+      <label>Montant (€)</label>
+      <input type="text" id="add-amount" placeholder="0,00" inputmode="decimal" required>
     </div>
     <div class="field">
-      <label class="field-check" for="chk-transfer">
-        <input type="checkbox" id="chk-transfer">
-        <div><div>Virement neutre</div><small>Visible dans la liste mais exclu des stats et du bilan</small></div>
+      <label>Date</label>
+      <input type="date" id="add-date" required>
+    </div>
+    <div class="field" id="add-cat-field">
+      <label>Catégorie</label>
+      <select id="add-cat"></select>
+    </div>
+    <div class="field" id="add-credit-field" style="display:none;">
+      <label>Compte lié</label>
+      <select id="add-credit-account">
+        <option value="">— Aucun —</option>
+      </select>
+    </div>
+
+    <!-- Section virement/économie -->
+    <div id="transfer-section" style="display:none;">
+      <div class="field">
+        <label>Compte destinataire</label>
+        <select id="add-transfer-to"></select>
+      </div>
+    </div>
+
+    <label class="field-check" for="add-planned" style="margin-top:8px;">
+      <input type="checkbox" id="add-planned">
+      <div>
+        <div>Transaction prévue</div>
+        <small>À décocher quand elle est effectuée</small>
+      </div>
+    </label>
+    <div id="add-rec-field">
+      <label class="field-check" for="add-rec">
+        <input type="checkbox" id="add-rec">
+        <div>
+          <div>Dépense récurrente</div>
+          <small>Se renouvelle automatiquement chaque mois</small>
+        </div>
       </label>
     </div>
-    <div class="field">
-      <label class="field-check" for="chk-rec">
-        <input type="checkbox" id="chk-rec">
-        <div><div>Depense recurrente</div><small>Se renouvelle automatiquement chaque mois</small></div>
-      </label>
-    </div>
-  </div>
-  <button class="submit-btn exp" id="submit-btn" onclick="addTx()">Enregistrer</button>
+
+    <button type="submit" class="submit-btn exp" id="add-submit-btn">Enregistrer</button>
+  </form>
 </div>
 
-<!-- STATISTIQUES -->
+<!-- ── STATISTIQUES ────────────────────────────────────────── -->
 <div class="section" id="sec-stats">
-  <div class="month-nav" style="background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);border:none;margin-bottom:12px;">
+  <div class="month-nav">
     <button onclick="changeMonth(-1)">&#9664;</button>
     <span class="month-label" id="mn-lbl-stats">-</span>
     <button onclick="changeMonth(1)">&#9654;</button>
   </div>
-  <div class="two-col">
-    <div class="mini-s"><div class="v" style="color:var(--green)" id="st-inc">0 &euro;</div><div class="l">Revenus</div><div class="vs-lm" id="vs-inc"></div></div>
-    <div class="mini-s"><div class="v" style="color:var(--teal)" id="st-exp">0 &euro;</div><div class="l">Depenses</div><div class="vs-lm" id="vs-exp"></div></div>
-    <div class="mini-s"><div class="v" id="st-nb" style="color:var(--blue)">0</div><div class="l">Operations</div><div class="vs-lm" id="vs-nb"></div></div>
-    <div class="mini-s"><div class="v" id="st-avg" style="color:var(--orange)">0 &euro;</div><div class="l">Moy/jour</div><div class="vs-lm" id="vs-avg"></div></div>
-  </div>
-  <div class="card">
-    <div class="card-title">Repartition des depenses</div>
-    <div class="donut-wrap">
-      <svg id="donut-svg" width="200" height="155" viewBox="0 0 200 155"></svg>
-    </div>
-    <div class="donut-3d-total"><span id="donut-total">0 &euro;</span> <span class="dc-lbl">de dépenses</span></div>
-    <div class="legend-list" id="donut-legend"></div>
-  </div>
-  <div class="card">
-    <div class="chart-title-row">
-      <div class="card-title" style="margin:0">Evolution revenus / dépenses</div>
-      <div class="prd-btns">
-        <button class="prd-btn bar-prd-btn" data-p="3"  onclick="setBarPeriod(3)">3M</button>
-        <button class="prd-btn bar-prd-btn prd-on" data-p="6"  onclick="setBarPeriod(6)">6M</button>
-        <button class="prd-btn bar-prd-btn" data-p="12" onclick="setBarPeriod(12)">12M</button>
-      </div>
-    </div>
-    <div class="bar-chart" id="bar-chart"></div>
-    <div class="bar-legend">
-      <div class="bl-item"><div class="bl-dot" style="background:#10b981"></div>Revenus</div>
-      <div class="bl-item"><div class="bl-dot" style="background:#00857a"></div>Depenses</div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="chart-title-row">
-      <div class="card-title" style="margin:0">Evolution du solde</div>
-      <div class="prd-btns">
-        <button class="prd-btn" data-p="3"  onclick="setBalPeriod(3)">3M</button>
-        <button class="prd-btn" data-p="6"  onclick="setBalPeriod(6)">6M</button>
-        <button class="prd-btn prd-on" data-p="12" onclick="setBalPeriod(12)">12M</button>
-      </div>
-    </div>
-    <div id="balance-chart"></div>
-  </div>
-  <div class="card"><div class="card-title">Detail par categorie</div><div id="cat-bars"></div></div>
+  <!-- Contenu injecté par renderStats() -->
 </div>
 
-<!-- RECURRENTS -->
+<!-- ── RÉCURRENTS ──────────────────────────────────────────── -->
 <div class="section" id="sec-rec">
-  <div style="background:var(--orange-bg);border:1px solid rgba(217,119,6,.2);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
-    <div style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:4px;">Depenses recurrentes</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.5;">Configurez ici vos charges mensuelles fixes.</div>
-  </div>
-  <div id="rec-list"></div>
-  <div style="text-align:center;padding:10px 0 4px;">
-    <button onclick="showSection('add')" style="background:var(--teal);color:#fff;border:none;border-radius:var(--radius);padding:13px 24px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">+ Ajouter une recurrente</button>
-  </div>
+  <!-- Contenu injecté par renderRec() -->
 </div>
 
-<!-- ANALYSE -->
+<!-- ── ANALYSE ─────────────────────────────────────────────── -->
 <div class="section" id="sec-analyse">
-  <div class="card">
-    <div class="card-title">Indicateurs cles</div>
-    <div class="kpi-grid" id="analyse-kpis"></div>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">&#9664;</button>
+    <span class="month-label" id="mn-lbl-analyse">-</span>
+    <button onclick="changeMonth(1)">&#9654;</button>
   </div>
+
+  <!-- Solde bancaire réel -->
   <div class="card">
-    <div class="card-title">Solde bancaire reel</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Entrez votre vrai solde bancaire pour ce mois — l'app projettera le solde de chaque mois.</div>
+    <div class="card-title">Solde bancaire réel</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">
+      Entrez votre vrai solde — l'app projette ensuite chaque mois.
+    </div>
     <div class="inline-row">
-      <div class="field" style="margin-bottom:0;flex:1;"><input type="number" id="inp-balref" placeholder="Ex: 1852.22" step="0.01"></div>
-      <button class="small-btn" onclick="saveBalRef()">Definir</button>
+      <div class="field" style="margin-bottom:0;flex:1;">
+        <input type="number" id="inp-balref" placeholder="Ex: 1852.22" step="0.01">
+      </div>
+      <button class="small-btn" onclick="saveBalRef()">Définir</button>
     </div>
     <div id="balref-display" style="display:none;margin-top:12px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
   </div>
-  <div class="card">
+
+  <!-- KPIs (injectés par renderAnalyse) -->
+  <div class="card" id="analyse-kpis-card" style="display:none;">
+    <div class="card-title">Indicateurs clés</div>
+    <div class="kpi-grid" id="analyse-kpis"></div>
+  </div>
+
+  <!-- Conseils automatiques -->
+  <div class="card" id="analyse-conseils-card" style="display:none;">
     <div class="card-title">Conseils automatiques</div>
     <div id="conseils-list"></div>
   </div>
-  <div class="card">
-    <div class="card-title">Objectifs d'epargne</div>
-    <div id="goals-list"></div>
-    <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-      <div class="inline-row">
-        <div class="field" style="flex:2;margin-bottom:0;"><input type="text" id="goal-name" placeholder="Nom de l'objectif"></div>
-        <div class="field" style="flex:1;margin-bottom:0;"><input type="number" id="goal-amt" placeholder="Montant" min="1"></div>
-        <button class="small-btn" onclick="addGoal()">+</button>
-      </div>
-    </div>
-  </div>
+
+  <!-- Analyse par catégorie (injectée par renderAnalyse) -->
+  <div id="analyse-by-cat"></div>
+
+  <!-- Budget mensuel -->
   <div class="card">
     <div class="card-title">Budget mensuel</div>
     <div class="inline-row">
-      <div class="field" style="margin-bottom:0;flex:1;"><input type="number" id="inp-bgt" placeholder="Ex : 1500" min="1"></div>
-      <button class="small-btn" onclick="saveBudget()">Definir</button>
+      <div class="field" style="margin-bottom:0;flex:1;">
+        <input type="number" id="inp-bgt" placeholder="Ex : 1500" min="1">
+      </div>
+      <button class="small-btn" onclick="saveBudget()">Définir</button>
     </div>
     <div id="bgt-display" style="display:none;margin-top:16px;">
       <div class="bgt-remaining" id="bgt-rem">-</div>
@@ -263,164 +238,105 @@
       <div class="bgt-pct" id="bgt-pct">0%</div>
     </div>
   </div>
+
+  <!-- Règle 50/30/20 -->
   <div class="card" id="rule-card" style="display:none;">
-    <div class="card-title">Regle 50/30/20</div>
+    <div class="card-title">Règle 50/30/20</div>
     <div id="rule-bars"></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5;">50% charges fixes · 30% loisirs · 20% epargne</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5;">50% charges fixes · 30% loisirs · 20% épargne</div>
   </div>
+
+  <!-- Objectifs d'épargne -->
   <div class="card">
-    <div class="card-title">Categories personnalisees</div>
-    <div id="custom-cats-list"></div>
+    <div class="card-title">Objectifs d'épargne</div>
+    <div id="goals-list"></div>
     <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-      <div style="display:flex;gap:6px;margin-bottom:8px;">
-        <button onclick="setNewCatType('expense')" id="newcat-btn-exp" style="flex:1;padding:8px;border-radius:8px;border:2px solid #c8102e;background:#fff0f0;color:#c8102e;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Depense</button>
-        <button onclick="setNewCatType('income')" id="newcat-btn-inc" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);background:var(--bg);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Revenu</button>
+      <div class="inline-row">
+        <div class="field" style="flex:2;margin-bottom:0;"><input type="text" id="goal-name" placeholder="Nom de l'objectif"></div>
+        <div class="field" style="flex:1;margin-bottom:0;"><input type="number" id="goal-amt" placeholder="Montant" min="1"></div>
+        <button class="small-btn" onclick="addGoalUI()">+</button>
       </div>
-      <div style="display:grid;grid-template-columns:52px 1fr 46px;gap:6px;margin-bottom:6px;">
-        <input type="text" id="newcat-icon" placeholder="🏷️" maxlength="2" style="padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:18px;text-align:center;box-sizing:border-box;width:100%;">
-        <input type="text" id="newcat-label" placeholder="Nom de la categorie" style="padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;font-family:'Inter',sans-serif;width:100%;">
-        <input type="color" id="newcat-color" value="#00857a" style="padding:2px;border:1.5px solid var(--border);border-radius:8px;height:38px;cursor:pointer;box-sizing:border-box;width:100%;">
-      </div>
-      <input type="text" id="newcat-group" placeholder="Groupe (ex: Maison, Loisirs...)" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:8px;font-family:'Inter',sans-serif;">
-      <button onclick="addCustomCat()" style="width:100%;background:var(--teal);color:#fff;border:none;border-radius:var(--radius);padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">+ Ajouter la categorie</button>
     </div>
   </div>
+
+  <!-- Catégories personnalisées -->
   <div class="card">
-    <div class="card-title">Donnees</div>
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+      Catégories perso
+      <button onclick="openCustomCatForm()" class="small-btn" style="padding:4px 10px;">+ Ajouter</button>
+    </div>
+    <div id="custom-cats-list"></div>
+    <div id="custom-cat-form" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button id="cc-btn-dep" onclick="customCatSetKind('expense')"
+          style="flex:1;padding:8px;border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:2px solid #c8102e;background:#fff0f0;color:#c8102e;">Dépense</button>
+        <button id="cc-btn-rev" onclick="customCatSetKind('income')"
+          style="flex:1;padding:8px;border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:2px solid var(--border);background:var(--bg);color:var(--text2);">Revenu</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input type="text" id="cc-inp-icon" placeholder="Icône ex: 🌿" maxlength="2"
+          style="width:60px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:20px;text-align:center;outline:none;font-family:'Inter',sans-serif;">
+        <input type="text" id="cc-inp-label" placeholder="Nom de la catégorie"
+          style="flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;color:var(--text);">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="closeCustomCatForm()" class="modal-btn-cancel" style="flex:1;">Annuler</button>
+        <button onclick="saveCustomCat()" class="modal-btn-save" style="flex:1;">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Données -->
+  <div class="card">
+    <div class="card-title">Données</div>
     <div class="data-btns">
       <button onclick="exportJSON()" class="small-btn" style="background:var(--blue);">Export JSON</button>
-      <button onclick="importJSON()" class="small-btn" style="background:var(--blue);opacity:0.75;">Import JSON</button>
-      <button onclick="exportCSV()" class="small-btn" style="background:var(--green);">Export CSV</button>
-      <button onclick="showSection('cic')" class="small-btn" style="background:var(--orange);">Import CIC</button>
+      <button onclick="importJSON()" class="small-btn" style="background:var(--blue);opacity:.75;">Import JSON</button>
     </div>
-    <button onclick="clearCurrentAccountTxs()" style="width:100%;background:none;border:1.5px solid #f59e0b;color:#f59e0b;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;" id="btn-clear-account">Vider le compte actif</button>
-    <button onclick="resetAll()" style="width:100%;background:none;border:1.5px solid #c8102e;color:#c8102e;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">Supprimer toutes les donnees</button>
-    <a href="setup.html" style="display:block;text-align:center;margin-top:12px;font-size:12px;color:var(--text3);text-decoration:none;">Reimporter / Configurer</a>
-  </div>
-
-</div>
-
-<!-- IMPORT CIC -->
-<div class="section" id="sec-cic">
-  <div style="background:var(--teal-light);border:1.5px solid var(--teal);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
-    <div style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px;">Import releve CIC (Filbanque)</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.6;">Comptes → Telecharger operations → Format CSV</div>
-  </div>
-  <div class="card" id="drop-zone" onclick="document.getElementById('csv-file').click()"
-    ondragover="event.preventDefault();this.classList.add('drag-over')"
-    ondragleave="this.classList.remove('drag-over')"
-    ondrop="handleDrop(event)">
-    <div style="text-align:center;padding:24px 0;cursor:pointer;">
-      <div style="font-size:42px;margin-bottom:10px;">&#128194;</div>
-      <div style="font-size:15px;font-weight:600;">Deposer le fichier CSV ou JSON ici</div>
-      <div style="font-size:12px;color:var(--text3);margin-top:4px;">ou cliquer pour selectionner</div>
-      <input type="file" id="csv-file" accept=".csv,.txt,.json" style="display:none" onchange="handleFileSelect(event)">
-    </div>
-  </div>
-  <div id="cic-results" style="display:none;">
-    <div class="two-col" style="margin-bottom:12px;">
-      <div class="mini-s"><div class="v" id="cic-nb" style="color:var(--teal)">0</div><div class="l">Lignes</div></div>
-      <div class="mini-s"><div class="v" id="cic-diffs" style="color:var(--orange)">0</div><div class="l">Differences</div></div>
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:10px;">
-      <button class="cic-tab active" id="ctab-all"  onclick="setCicTab('all')">Toutes</button>
-      <button class="cic-tab" id="ctab-diff" onclick="setCicTab('diff')">Diff</button>
-      <button class="cic-tab" id="ctab-ok"   onclick="setCicTab('ok')">OK</button>
-      <button class="cic-tab" id="ctab-new"  onclick="setCicTab('new')">Nouvelles</button>
-    </div>
-    <div id="cic-list"></div>
-    <div style="display:flex;gap:8px;margin-top:14px;">
-      <button onclick="importAllNew()" style="flex:1;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:13px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Importer nouvelles</button>
-      <button onclick="clearCicImport()" style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:13px 14px;font-size:13px;color:var(--text2);cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;">X</button>
-    </div>
+    <button onclick="restoreBackup()"
+      style="width:100%;background:none;border:1.5px solid var(--teal);color:var(--teal);border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">
+      Restaurer sauvegarde auto
+    </button>
+    <button onclick="clearCurrentAccountTxs()"
+      style="width:100%;background:none;border:1.5px solid #f59e0b;color:#f59e0b;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">
+      Vider le compte actif
+    </button>
+    <button onclick="resetAll()"
+      style="width:100%;background:none;border:1.5px solid #c8102e;color:#c8102e;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">
+      Supprimer toutes les données
+    </button>
   </div>
 </div>
 
-</div>
-
-<!-- MODAL -->
-<div class="modal-overlay" id="tx-edit-modal" onclick="closeTxModal(event)">
-  <div class="modal-box">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Modifier la transaction</div>
-    <input type="hidden" id="tx-edit-id">
-    <div class="modal-field">
-      <div style="display:flex;gap:8px;margin-bottom:4px;">
-        <button id="tx-edit-btn-exp" onclick="setTxModalType('expense')" style="flex:1;padding:10px;border-radius:8px;border:2px solid #c8102e;background:#fff0f0;color:#c8102e;font-weight:600;cursor:pointer;">Depense</button>
-        <button id="tx-edit-btn-inc" onclick="setTxModalType('income')" style="flex:1;padding:10px;border-radius:8px;border:2px solid var(--border);background:var(--bg);color:var(--text2);font-weight:600;cursor:pointer;">Revenu</button>
-      </div>
-    </div>
-    <div class="modal-field"><label>Description</label><input type="text" id="tx-edit-desc"></div>
-    <div class="modal-field"><label>Montant (euros)</label><input type="number" id="tx-edit-amt" min="0" step="0.01" inputmode="decimal"></div>
-    <div class="modal-field"><label>Date</label><input type="date" id="tx-edit-date"></div>
-    <div class="modal-field"><label>Categorie</label><select id="tx-edit-cat"></select></div>
-    <div class="modal-field">
-      <label class="field-check" for="tx-edit-planned" style="padding:10px 14px;">
-        <input type="checkbox" id="tx-edit-planned">
-        <div><div>Transaction prevue</div><small>Decocher quand elle est effectuee</small></div>
-      </label>
-    </div>
-    <div class="modal-field">
-      <label class="field-check" for="tx-edit-transfer" style="padding:10px 14px;">
-        <input type="checkbox" id="tx-edit-transfer">
-        <div><div>Virement neutre</div><small>Exclu des stats et du bilan</small></div>
-      </label>
-    </div>
-    <div class="modal-field">
-      <label class="field-check" for="tx-edit-rec" style="padding:10px 14px;">
-        <input type="checkbox" id="tx-edit-rec">
-        <div><div>Recurrente</div><small>Sera proposee automatiquement chaque mois</small></div>
-      </label>
-    </div>
-    <div class="modal-btns">
-      <button class="modal-btn-cancel" onclick="closeTxModal()">Annuler</button>
-      <button class="modal-btn-save" onclick="saveTxEdit()">Enregistrer</button>
-    </div>
+<!-- ═══ MODAL TRANSACTION ════════════════════════════════════ -->
+<div class="modal-overlay" id="tx-modal" onclick="if(event.target===this)closeTxModal()">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto;" id="tx-modal-inner">
+    <!-- Contenu injecté dynamiquement par txModal.ts -->
   </div>
 </div>
 
-<div class="modal-overlay" id="cat-detail-modal" onclick="closeCatDetail(event)">
-  <div class="modal-box">
-    <div class="modal-handle"></div>
-    <div class="modal-title" id="cat-detail-title"></div>
-    <div id="cat-detail-list" style="max-height:55vh;overflow-y:auto;"></div>
-    <div style="padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-      <div style="font-size:13px;color:var(--text2)">Total</div>
-      <div id="cat-detail-total" style="font-size:16px;font-weight:700;color:#c8102e"></div>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="edit-modal" onclick="closeEditModal(event)">
-  <div class="modal-box">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Modifier la recurrente</div>
-    <input type="hidden" id="edit-id">
-    <div class="modal-field"><label>Description</label><input type="text" id="edit-desc"></div>
-    <div class="modal-field"><label>Montant (euros)</label><input type="number" id="edit-amt" min="0" step="0.01" inputmode="decimal"></div>
-    <div class="modal-field"><label>Jour du mois (1-28)</label><input type="number" id="edit-day" min="1" max="28"></div>
-    <div class="modal-field"><label>Categorie</label><select id="edit-cat"></select></div>
-    <div class="modal-btns">
-      <button class="modal-btn-cancel" onclick="closeEditModal()">Annuler</button>
-      <button class="modal-btn-save" onclick="saveEditRec()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
-<!-- BOTTOM NAV -->
+<!-- ═══ BOTTOM NAV ═══════════════════════════════════════════ -->
 <nav class="bottom-nav">
-  <button class="nav-btn active" id="nav-dash"    onclick="showSection('dash')"><span class="nav-icon">&#127968;</span>Accueil</button>
-  <button class="nav-btn" id="nav-add"             onclick="showSection('add')"><span class="nav-icon">+</span>Ajouter</button>
-  <button class="nav-btn" id="nav-stats"           onclick="showSection('stats')"><span class="nav-icon">&#128202;</span>Stats</button>
-  <button class="nav-btn" id="nav-rec"             onclick="showSection('rec')"><span class="nav-icon">&#128260;</span>Recurrents</button>
-  <button class="nav-btn" id="nav-analyse"         onclick="showSection('analyse')"><span class="nav-icon">&#128161;</span>Analyse</button>
+  <button class="nav-btn active" data-section="dash"    onclick="navGo('dash')">
+    <span class="nav-icon">&#127968;</span>Accueil
+  </button>
+  <button class="nav-btn" data-section="add"     onclick="navGo('add');initAddForm()">
+    <span class="nav-icon">+</span>Ajouter
+  </button>
+  <button class="nav-btn" data-section="stats"   onclick="navGo('stats')">
+    <span class="nav-icon">&#128202;</span>Stats
+  </button>
+  <button class="nav-btn" data-section="rec"     onclick="navGo('rec')">
+    <span class="nav-icon">&#128260;</span>Récurrents
+  </button>
+  <button class="nav-btn" data-section="analyse" onclick="navGo('analyse')">
+    <span class="nav-icon">&#128161;</span>Analyse
+  </button>
 </nav>
 
 <div class="toast" id="toast"></div>
 
-<script src="js/storage.js?v=10"></script>
-<script src="js/pin.js?v=10"></script>
-<script src="js/app.js?v=10"></script>
-<script>PinManager.start();</script>
+</div><!-- #app -->
+
 </body>
 </html>

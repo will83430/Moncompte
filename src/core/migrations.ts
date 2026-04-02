@@ -140,11 +140,20 @@ export function migrateV1toV2(raw: V1RawData): AppData {
     savedCents:  g.savedCents  ?? Math.round((g.saved  ?? 0) * 100),
   }));
 
+  // Convertir mensualite euros→cents pour les comptes crédit (v1 stockait en euros)
+  const accounts = (raw.accounts || []).map(acc => {
+    if (acc.mensualite && acc.mensualite < 10000) {
+      // Si < 10000 c'est en euros (mensualité max réaliste ~9999€/mois)
+      return { ...acc, mensualite: Math.round(acc.mensualite * 100) };
+    }
+    return acc;
+  });
+
   return {
     version:    2,
     txs,
     recs,
-    accounts:   raw.accounts   || [],
+    accounts,
     anchors,
     customCats: raw.customCats || [],
     budget:     Math.round((raw.data.budget || 0) * 100),

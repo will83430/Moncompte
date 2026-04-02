@@ -24,6 +24,35 @@ import { getState, setState } from './ui/app';
   await setState(data);
   import('./ui/toast').then(m => m.toast(`✓ ${data.txs.length} transactions restaurées`));
 });
+(window as any).restoreBackup = async () => {
+  const { toast } = await import('./ui/toast');
+  try {
+    const Filesystem = (window as any).Capacitor?.Plugins?.Filesystem;
+    if (!Filesystem) { toast('Plugin Filesystem non disponible'); return; }
+
+    const result = await Filesystem.readFile({
+      path:      'moncarnetcompte_backup.json',
+      directory: 'EXTERNAL',
+      encoding:  'utf8',
+    });
+
+    const raw = JSON.parse(result.data as string);
+    const { migrateV1toV2 } = await import('./core/migrations');
+
+    let data = null;
+    if (raw.version === 2 && Array.isArray(raw.txs)) {
+      data = raw;
+    } else if (Array.isArray(raw.txs)) {
+      data = migrateV1toV2({ data: raw, balRef: raw.balanceRef, accounts: raw.accounts, customCats: raw.customCats });
+    }
+
+    if (!data) { toast('Format de sauvegarde invalide'); return; }
+    await setState(data);
+    toast(`✓ ${data.txs.length} transactions restaurées`);
+  } catch (e: any) {
+    toast('Erreur : ' + (e?.message ?? String(e)));
+  }
+};
 
 // Lancer l'application dès que le DOM est prêt
 if (document.readyState === 'loading') {

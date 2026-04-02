@@ -4,6 +4,7 @@
 
 import { IsoDate, AccountId } from '../core/types';
 import { addTransaction, addTransfer } from '../core/service';
+import { SYSTEM_CATS } from '../core/categories';
 import { getState, setState } from './app';
 import { Nav, Router } from './router';
 import { toast } from './toast';
@@ -16,11 +17,66 @@ let _kind: FormKind = 'expense';
 
 export function setFormKind(kind: FormKind) {
   _kind = kind;
+  const isTransfer = kind === 'transfer';
+
+  // Boutons actifs
   document.querySelectorAll<HTMLElement>('.type-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset['kind'] === kind);
+    btn.classList.remove('act-exp', 'act-inc', 'act-transfer');
+    if (btn.dataset['kind'] === kind) {
+      if (kind === 'expense')  btn.classList.add('act-exp');
+      if (kind === 'income')   btn.classList.add('act-inc');
+      if (kind === 'transfer') btn.classList.add('act-transfer');
+    }
   });
-  const transferSection = document.getElementById('transfer-section');
-  if (transferSection) transferSection.style.display = kind === 'transfer' ? 'block' : 'none';
+
+  const show = (id: string, visible: boolean) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? 'block' : 'none';
+  };
+
+  show('add-cat-field',    !isTransfer);
+  show('add-credit-field', kind === 'expense');
+  show('transfer-section', isTransfer);
+  show('add-rec-field',    !isTransfer);
+
+  if (!isTransfer) refreshCatSelect(kind);
+}
+
+// ── Remplissage select catégorie ──────────────────────────────
+
+function refreshCatSelect(kind: 'income' | 'expense') {
+  const sel = document.getElementById('add-cat') as HTMLSelectElement | null;
+  if (!sel) return;
+
+  const state = getState();
+  const incomeGroups = ['Revenus pro', 'Revenus immo', 'Aides', 'Épargne', 'Divers'];
+  const sys = SYSTEM_CATS.filter(c =>
+    kind === 'income' ? incomeGroups.includes(c.group) : !incomeGroups.includes(c.group)
+  );
+  const custom = (state.customCats || []).filter(c => c.type === kind);
+
+  const groups = new Map<string, typeof sys>();
+  for (const c of sys) {
+    if (!groups.has(c.group)) groups.set(c.group, []);
+    groups.get(c.group)!.push(c);
+  }
+
+  let html = '';
+  for (const [grp, cats] of groups) {
+    html += `<optgroup label="── ${grp}">`;
+    for (const c of cats) {
+      html += `<option value="${c.id}">${c.icon} ${c.label}</option>`;
+    }
+    html += '</optgroup>';
+  }
+  if (custom.length) {
+    html += `<optgroup label="── Personnalisées">`;
+    for (const c of custom) {
+      html += `<option value="${c.id}">${c.icon} ${c.label}</option>`;
+    }
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
 }
 
 // ── Soumission ────────────────────────────────────────────────
@@ -31,7 +87,7 @@ export async function submitAddForm(e: Event) {
   const desc    = (document.getElementById('add-desc')    as HTMLInputElement).value.trim();
   const amount  = inputToCents((document.getElementById('add-amount') as HTMLInputElement).value);
   const date    = (document.getElementById('add-date')    as HTMLInputElement).value as IsoDate;
-  const cat     = (document.getElementById('add-cat')     as HTMLInputElement).value || 'autre';
+  const cat     = (document.getElementById('add-cat')     as HTMLSelectElement).value || 'autre_dep';
   const planned = (document.getElementById('add-planned') as HTMLInputElement)?.checked ?? false;
   const isRec   = (document.getElementById('add-rec')     as HTMLInputElement)?.checked ?? false;
 
@@ -51,19 +107,24 @@ export async function submitAddForm(e: Event) {
       toAccountId:   toId,
       amountCents:   amount,
       date,
-      desc: desc || 'Virement',
+      desc:    desc || 'Virement',
+      planned,
     }));
     toast('✓ Virement ajouté');
   } else {
+    const creditSel = document.getElementById('add-credit-account') as HTMLSelectElement | null;
+    const creditAccountId = creditSel?.value || undefined;
+
     await setState(addTransaction(state, {
       accountId,
       date,
       amountCents: amount,
-      kind:        _kind,
+      kind:        _kind as 'income' | 'expense',
       cat,
       desc,
       planned,
       recurring:   isRec,
+      ...(creditAccountId ? { creditAccountId: creditAccountId as AccountId } : {}),
     }));
     toast(`✓ ${_kind === 'income' ? 'Revenu' : 'Dépense'} ajouté${_kind === 'income' ? '' : 'e'}`);
   }
@@ -78,9 +139,9 @@ function resetForm() {
   const form = document.getElementById('add-form') as HTMLFormElement | null;
   if (form) form.reset();
   setFormKind('expense');
-  // Remettre la date à aujourd'hui
   const dateEl = document.getElementById('add-date') as HTMLInputElement | null;
   if (dateEl) dateEl.value = todayIso();
+  refreshCatSelect('expense');
 }
 
 // ── Init (appelé au chargement de la section) ─────────────────
@@ -89,7 +150,11 @@ export function initAddForm() {
   const dateEl = document.getElementById('add-date') as HTMLInputElement | null;
   if (dateEl && !dateEl.value) dateEl.value = todayIso();
 
-  // Remplir le sélecteur de compte cible pour les virements
+  // Remplir catégories
+  const catKind: 'income' | 'expense' = (_kind === 'income') ? 'income' : 'expense';
+  refreshCatSelect(catKind);
+
+  // Remplir sélecteur de compte cible pour les virements
   const toSelect = document.getElementById('add-transfer-to') as HTMLSelectElement | null;
   if (toSelect) {
     const state = getState();
@@ -100,7 +165,20 @@ export function initAddForm() {
       .join('');
   }
 
-  setFormKind('expense');
+  // Remplir comptes liés (épargne + crédit, groupés)
+  const creditSel = document.getElementById('add-credit-account') as HTMLSelectElement | null;
+  if (creditSel) {
+    const state = getState();
+    const savings = state.accounts.filter(a => a.type === 'savings');
+    const credits = state.accounts.filter(a => a.type === 'credit');
+    const savingsOpts = savings.length
+      ? `<optgroup label="── Épargne (versement)">${savings.map(a => `<option value="${a.id}">${a.icon} ${a.name}</option>`).join('')}</optgroup>` : '';
+    const creditOpts = credits.length
+      ? `<optgroup label="── Crédit (remboursement)">${credits.map(a => `<option value="${a.id}">${a.icon} ${a.name}</option>`).join('')}</optgroup>` : '';
+    creditSel.innerHTML = `<option value="">— Aucun —</option>${savingsOpts}${creditOpts}`;
+  }
+
+  setFormKind(_kind);
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -110,6 +188,6 @@ function todayIso(): string {
 }
 
 // Exposer globalement
-(window as any).setFormKind  = setFormKind;
+(window as any).setFormKind   = setFormKind;
 (window as any).submitAddForm = submitAddForm;
-(window as any).initAddForm  = initAddForm;
+(window as any).initAddForm   = initAddForm;

@@ -86,6 +86,17 @@
     <span class="month-label" id="mn-lbl">-</span>
     <button onclick="changeMonth(1)">&#9654;</button>
   </div>
+  <!-- Alerte récurrentes à importer -->
+  <div id="rec-alert" style="display:none;margin:0 0 10px;">
+    <div style="background:var(--orange-bg);border:1.5px solid var(--orange);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:20px">🔄</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;color:var(--orange)">Récurrentes en attente</div>
+        <div style="font-size:12px;color:var(--text2)" id="rec-alert-txt"></div>
+      </div>
+      <button onclick="generateRec()" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Importer</button>
+    </div>
+  </div>
   <div class="s-title">Transactions récentes</div>
   <div id="tx-list"></div>
 </div>
@@ -93,8 +104,8 @@
 <!-- ── AJOUTER ─────────────────────────────────────────────── -->
 <div class="section" id="sec-add">
   <div class="type-toggle">
-    <button class="type-btn active" data-kind="expense" onclick="setFormKind('expense')">Dépense</button>
-    <button class="type-btn"        data-kind="income"  onclick="setFormKind('income')">Revenu</button>
+    <button class="type-btn active" data-kind="expense"  onclick="setFormKind('expense')">Dépense</button>
+    <button class="type-btn"        data-kind="income"   onclick="setFormKind('income')">Revenu</button>
     <button class="type-btn"        data-kind="transfer" onclick="setFormKind('transfer')">Virement</button>
   </div>
 
@@ -105,23 +116,24 @@
     </div>
     <div class="field">
       <label>Montant (€)</label>
-      <input type="number" id="add-amount" placeholder="0,00" min="0.01" step="0.01" inputmode="decimal" required>
+      <input type="text" id="add-amount" placeholder="0,00" inputmode="decimal" required>
     </div>
     <div class="field">
       <label>Date</label>
       <input type="date" id="add-date" required>
     </div>
-    <div class="field">
+    <div class="field" id="add-cat-field">
       <label>Catégorie</label>
-      <input type="text" id="add-cat" placeholder="alimentation, transport…" list="cat-list">
-      <datalist id="cat-list">
-        <option value="salaire"><option value="loyer"><option value="alimentation">
-        <option value="transport"><option value="sante"><option value="loisirs">
-        <option value="abonnement"><option value="restaurant"><option value="autre">
-      </datalist>
+      <select id="add-cat"></select>
+    </div>
+    <div class="field" id="add-credit-field" style="display:none;">
+      <label>Compte lié</label>
+      <select id="add-credit-account">
+        <option value="">— Aucun —</option>
+      </select>
     </div>
 
-    <!-- Section virement (cachée par défaut) -->
+    <!-- Section virement/économie -->
     <div id="transfer-section" style="display:none;">
       <div class="field">
         <label>Compte destinataire</label>
@@ -129,15 +141,14 @@
       </div>
     </div>
 
-    <!-- Options (cachées en mode virement) -->
-    <div id="add-options">
-      <label class="field-check" for="add-planned">
-        <input type="checkbox" id="add-planned">
-        <div>
-          <div>Transaction prévue</div>
-          <small>À décocher quand elle est effectuée</small>
-        </div>
-      </label>
+    <label class="field-check" for="add-planned" style="margin-top:8px;">
+      <input type="checkbox" id="add-planned">
+      <div>
+        <div>Transaction prévue</div>
+        <small>À décocher quand elle est effectuée</small>
+      </div>
+    </label>
+    <div id="add-rec-field">
       <label class="field-check" for="add-rec">
         <input type="checkbox" id="add-rec">
         <div>
@@ -189,8 +200,84 @@
     <div id="balref-display" style="display:none;margin-top:12px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
   </div>
 
+  <!-- KPIs (injectés par renderAnalyse) -->
+  <div class="card" id="analyse-kpis-card" style="display:none;">
+    <div class="card-title">Indicateurs clés</div>
+    <div class="kpi-grid" id="analyse-kpis"></div>
+  </div>
+
+  <!-- Conseils automatiques -->
+  <div class="card" id="analyse-conseils-card" style="display:none;">
+    <div class="card-title">Conseils automatiques</div>
+    <div id="conseils-list"></div>
+  </div>
+
   <!-- Analyse par catégorie (injectée par renderAnalyse) -->
   <div id="analyse-by-cat"></div>
+
+  <!-- Budget mensuel -->
+  <div class="card">
+    <div class="card-title">Budget mensuel</div>
+    <div class="inline-row">
+      <div class="field" style="margin-bottom:0;flex:1;">
+        <input type="number" id="inp-bgt" placeholder="Ex : 1500" min="1">
+      </div>
+      <button class="small-btn" onclick="saveBudget()">Définir</button>
+    </div>
+    <div id="bgt-display" style="display:none;margin-top:16px;">
+      <div class="bgt-remaining" id="bgt-rem">-</div>
+      <div class="bgt-sub" id="bgt-sub">-</div>
+      <div class="bgt-track"><div class="bgt-fill" id="bgt-bar" style="width:0%"></div></div>
+      <div class="bgt-pct" id="bgt-pct">0%</div>
+    </div>
+  </div>
+
+  <!-- Règle 50/30/20 -->
+  <div class="card" id="rule-card" style="display:none;">
+    <div class="card-title">Règle 50/30/20</div>
+    <div id="rule-bars"></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5;">50% charges fixes · 30% loisirs · 20% épargne</div>
+  </div>
+
+  <!-- Objectifs d'épargne -->
+  <div class="card">
+    <div class="card-title">Objectifs d'épargne</div>
+    <div id="goals-list"></div>
+    <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+      <div class="inline-row">
+        <div class="field" style="flex:2;margin-bottom:0;"><input type="text" id="goal-name" placeholder="Nom de l'objectif"></div>
+        <div class="field" style="flex:1;margin-bottom:0;"><input type="number" id="goal-amt" placeholder="Montant" min="1"></div>
+        <button class="small-btn" onclick="addGoalUI()">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Catégories personnalisées -->
+  <div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+      Catégories perso
+      <button onclick="openCustomCatForm()" class="small-btn" style="padding:4px 10px;">+ Ajouter</button>
+    </div>
+    <div id="custom-cats-list"></div>
+    <div id="custom-cat-form" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button id="cc-btn-dep" onclick="customCatSetKind('expense')"
+          style="flex:1;padding:8px;border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:2px solid #c8102e;background:#fff0f0;color:#c8102e;">Dépense</button>
+        <button id="cc-btn-rev" onclick="customCatSetKind('income')"
+          style="flex:1;padding:8px;border-radius:8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:2px solid var(--border);background:var(--bg);color:var(--text2);">Revenu</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input type="text" id="cc-inp-icon" placeholder="Icône ex: 🌿" maxlength="2"
+          style="width:60px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:20px;text-align:center;outline:none;font-family:'Inter',sans-serif;">
+        <input type="text" id="cc-inp-label" placeholder="Nom de la catégorie"
+          style="flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:'Inter',sans-serif;font-size:14px;outline:none;color:var(--text);">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="closeCustomCatForm()" class="modal-btn-cancel" style="flex:1;">Annuler</button>
+        <button onclick="saveCustomCat()" class="modal-btn-save" style="flex:1;">Enregistrer</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Données -->
   <div class="card">
@@ -199,6 +286,10 @@
       <button onclick="exportJSON()" class="small-btn" style="background:var(--blue);">Export JSON</button>
       <button onclick="importJSON()" class="small-btn" style="background:var(--blue);opacity:.75;">Import JSON</button>
     </div>
+    <button onclick="restoreBackup()"
+      style="width:100%;background:none;border:1.5px solid var(--teal);color:var(--teal);border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">
+      Restaurer sauvegarde auto
+    </button>
     <button onclick="clearCurrentAccountTxs()"
       style="width:100%;background:none;border:1.5px solid #f59e0b;color:#f59e0b;border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">
       Vider le compte actif
@@ -212,15 +303,8 @@
 
 <!-- ═══ MODAL TRANSACTION ════════════════════════════════════ -->
 <div class="modal-overlay" id="tx-modal" onclick="if(event.target===this)closeTxModal()">
-  <div class="modal-box">
-    <div class="modal-handle"></div>
-    <div class="modal-title" id="tx-modal-title">Transaction</div>
-    <div id="tx-modal-amount" style="text-align:center;font-size:28px;font-weight:700;margin:8px 0;"></div>
-    <div id="tx-modal-date"   style="text-align:center;font-size:13px;color:var(--text2);margin-bottom:4px;"></div>
-    <div id="tx-modal-cat"    style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:10px;"></div>
-    <div id="tx-modal-badges" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;"></div>
-    <div id="tx-modal-actions" class="modal-btns"></div>
-    <div id="tx-modal-edit-form" style="display:none;margin-top:12px;"></div>
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto;" id="tx-modal-inner">
+    <!-- Contenu injecté dynamiquement par txModal.ts -->
   </div>
 </div>
 

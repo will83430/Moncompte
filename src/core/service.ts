@@ -8,18 +8,49 @@ import {
   AppData, Transaction, RecurringTemplate, Account, BalanceAnchor, Goal,
   TxId, AccountId, RecId, MonthKey, IsoDate,
   mkTxId, mkRecId,
-  isRealIncome, isRealExpense, toMonthKey,
 } from './types';
-import { computeBalance, computeProjectedBalance, currentMonthKey } from './balance';
+import { computeBalance, computeProjectedBalance } from './balance';
 import { createTransfer, deleteTransfer, TransferParams } from './transfers';
 
 // ── Transactions ──────────────────────────────────────────────
+
+/** Construit la tx miroir planifiée dans le compte lié.
+ *  Livret (savings) → income (versement)
+ *  Crédit (credit)  → expense (remboursement) */
+function buildMirrorTx(source: Transaction, linkedAccount: Account, mirrorId: TxId): Transaction {
+  const kind: 'income' | 'expense' = linkedAccount.type === 'savings' ? 'income' : 'expense';
+  const cat  = linkedAccount.type === 'savings' ? 'livret' : 'credit_conso';
+  return {
+    id:          mirrorId,
+    accountId:   linkedAccount.id,
+    date:        source.date,
+    amountCents: source.amountCents,
+    kind,
+    cat,
+    desc:        source.desc,
+    planned:     true,
+    recurring:   source.recurring,
+    ...(source.recId ? { recId: source.recId } : {}),
+  };
+}
 
 export function addTransaction(
   data: AppData,
   tx: Omit<Transaction, 'id'>
 ): AppData {
-  const newTx: Transaction = { ...tx, id: mkTxId() };
+  const newId  = mkTxId();
+  let newTx: Transaction = { ...tx, id: newId };
+
+  if (tx.creditAccountId) {
+    const linkedAccount = data.accounts.find(a => a.id === tx.creditAccountId);
+    if (linkedAccount) {
+      const mirrorId = mkTxId();
+      const mirrorTx = buildMirrorTx(newTx, linkedAccount, mirrorId);
+      newTx = { ...newTx, creditTxId: mirrorId };
+      return { ...data, txs: [...data.txs, newTx, mirrorTx] };
+    }
+  }
+
   return { ...data, txs: [...data.txs, newTx] };
 }
 
@@ -34,18 +65,80 @@ export function updateTransaction(
   };
 }
 
+/** Met à jour une tx et synchronise la tx miroir (date, montant, desc). */
+export function updateTransactionWithMirror(
+  data: AppData,
+  id: TxId,
+  patch: Partial<Omit<Transaction, 'id'>>
+): AppData {
+  let updated = updateTransaction(data, id, patch);
+  const tx = updated.txs.find(t => t.id === id);
+  if (tx?.creditTxId) {
+    const mirrorPatch: Partial<Omit<Transaction, 'id'>> = {};
+    if (patch.date        !== undefined) mirrorPatch.date        = patch.date;
+    if (patch.amountCents !== undefined) mirrorPatch.amountCents = patch.amountCents;
+    if (patch.desc        !== undefined) mirrorPatch.desc        = patch.desc;
+    if (Object.keys(mirrorPatch).length > 0) {
+      updated = updateTransaction(updated, tx.creditTxId, mirrorPatch);
+    }
+  }
+  return updated;
+}
+
 export function deleteTransaction(data: AppData, id: TxId): AppData {
-  return { ...data, txs: data.txs.filter(t => t.id !== id) };
+  const tx = data.txs.find(t => t.id === id);
+  let filtered = data.txs.filter(t => t.id !== id);
+  // Supprime aussi la tx miroir si elle existe
+  if (tx?.creditTxId) {
+    filtered = filtered.filter(t => t.id !== tx.creditTxId);
+  }
+  return { ...data, txs: filtered };
 }
 
-/** Valide une transaction planifiée (planned → false) */
+/** Valide une transaction planifiée (planned → false).
+ *  - Si virement (transferId) : valide les deux jambes.
+ *  - Si tx miroir (creditTxId) : valide aussi la tx du compte lié. */
 export function confirmTransaction(data: AppData, id: TxId): AppData {
-  return updateTransaction(data, id, { planned: false });
+  const tx = data.txs.find(t => t.id === id);
+  if (!tx) return data;
+
+  let updated = updateTransaction(data, id, { planned: false });
+
+  // Virement : confirmer l'autre jambe aussi
+  if (tx.transferId) {
+    const other = data.txs.find(t => t.transferId === tx.transferId && t.id !== id);
+    if (other) updated = updateTransaction(updated, other.id, { planned: false });
+  }
+
+  // Compte lié : confirmer la tx miroir
+  if (tx.creditTxId) {
+    updated = updateTransaction(updated, tx.creditTxId, { planned: false });
+  }
+
+  return updated;
 }
 
-/** Remet une transaction en mode planifié */
+/** Remet une transaction en mode planifié.
+ *  - Si virement (transferId) : remet les deux jambes en prévu.
+ *  - Si tx miroir (creditTxId) : remet aussi la tx du compte lié. */
 export function revertToPlanned(data: AppData, id: TxId): AppData {
-  return updateTransaction(data, id, { planned: true });
+  const tx = data.txs.find(t => t.id === id);
+  if (!tx) return data;
+
+  let updated = updateTransaction(data, id, { planned: true });
+
+  // Virement : annuler l'autre jambe aussi
+  if (tx.transferId) {
+    const other = data.txs.find(t => t.transferId === tx.transferId && t.id !== id);
+    if (other) updated = updateTransaction(updated, other.id, { planned: true });
+  }
+
+  // Compte lié : remettre la tx miroir en prévu
+  if (tx.creditTxId) {
+    updated = updateTransaction(updated, tx.creditTxId, { planned: true });
+  }
+
+  return updated;
 }
 
 // ── Virements ─────────────────────────────────────────────────
@@ -108,8 +201,9 @@ export function generatePlannedFromRecs(
     const day = Math.min(rec.dayOfMonth, daysInMonth(year, monthNum));
     const date = `${month}-${String(day).padStart(2, '0')}` as IsoDate;
 
-    newTxs.push({
-      id:          mkTxId(),
+    const sourceTxId = mkTxId();
+    const sourceTx: Transaction = {
+      id:          sourceTxId,
       accountId,
       date,
       amountCents: rec.amountCents,
@@ -119,7 +213,20 @@ export function generatePlannedFromRecs(
       planned:     true,
       recurring:   true,
       recId:       rec.id,
-    });
+      ...(rec.creditAccountId ? { creditAccountId: rec.creditAccountId } : {}),
+    };
+
+    if (rec.creditAccountId) {
+      const linkedAccount = data.accounts.find(a => a.id === rec.creditAccountId);
+      if (linkedAccount) {
+        const mirrorId = mkTxId();
+        const mirrorTx = buildMirrorTx({ ...sourceTx, recId: rec.id }, linkedAccount, mirrorId);
+        newTxs.push({ ...sourceTx, creditTxId: mirrorId }, mirrorTx);
+        continue;
+      }
+    }
+
+    newTxs.push(sourceTx);
   }
 
   if (newTxs.length === 0) return data;

@@ -88,12 +88,24 @@ export const SYSTEM_CATS: CatDef[] = [
 // Lookup rapide par id
 const _byId = new Map<string, CatDef>(SYSTEM_CATS.map(c => [c.id, c]));
 
+// Aliases V1 → V2
+const CAT_ALIASES: Record<string, string> = {
+  'autre':         'autre_dep',
+  'other_expense': 'autre_dep',
+  'other_income':  'autre_rev',
+  'sante':         'medecin',
+  'transport':     'transports_com',
+  'loisir':        'sport_loisir',
+  'assurance':     'assurance_hab',
+  'credit':        'credit_conso',
+};
+
 export function getCatDef(
   catId: string,
   customCats: import('./types').CustomCategory[] = []
 ): CatDef {
   // Catégorie système
-  const sys = _byId.get(catId);
+  const sys = _byId.get(catId) ?? _byId.get(CAT_ALIASES[catId] ?? '');
   if (sys) return sys;
   // Catégorie personnalisée
   const custom = customCats.find(c => c.id === catId);
@@ -104,6 +116,9 @@ export function getCatDef(
     color: '#00857a',
     group: 'Custom',
   };
-  // Fallback
-  return { id: catId, label: catId, icon: '📌', color: '#9ca3af', group: 'Divers' };
+  // Fallback emoji : si le catId ressemble à un emoji, l'utiliser directement comme icône
+  if (catId && !/^[\w_-]+$/.test(catId)) {
+    return { id: catId, label: 'Virement', icon: catId, color: '#6b7280', group: 'Virements' };
+  }
+  return { id: catId, label: catId, icon: '↔️', color: '#9ca3af', group: 'Divers' };
 }

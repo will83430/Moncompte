@@ -31,30 +31,33 @@ export interface Account {
 export type TxKind = 'income' | 'expense' | 'transfer_out' | 'transfer_in';
 
 export interface Transaction {
-  id:          TxId;
-  accountId:   AccountId;
-  date:        IsoDate;
+  id:               TxId;
+  accountId:        AccountId;
+  date:             IsoDate;
   /** Toujours positif, exprimé en centimes (ex: 1050 = 10,50 €) */
-  amountCents: number;
-  kind:        TxKind;
-  cat:         string;
-  desc:        string;
-  planned:     boolean;
-  recurring:   boolean;
-  recId?:      RecId;       // lien vers la récurrente source
-  transferId?: TransferId;  // lien entre les deux jambes d'un virement
+  amountCents:      number;
+  kind:             TxKind;
+  cat:              string;
+  desc:             string;
+  planned:          boolean;
+  recurring:        boolean;
+  recId?:           RecId;       // lien vers la récurrente source
+  transferId?:      TransferId;  // lien entre les deux jambes d'un virement
+  creditAccountId?: AccountId;   // si dépense remboursement crédit : injecter aussi dans ce compte
+  creditTxId?:      TxId;        // ID de la tx remboursement injectée dans le compte crédit (pour annulation)
 }
 
 // ── Récurrentes ───────────────────────────────────────────────
 export interface RecurringTemplate {
-  id:          RecId;
-  accountId:   AccountId;
-  kind:        'income' | 'expense';
-  amountCents: number;
-  desc:        string;
-  cat:         string;
-  dayOfMonth:  number; // 1–31
-  active:      boolean;
+  id:               RecId;
+  accountId:        AccountId;
+  kind:             'income' | 'expense';
+  amountCents:      number;
+  desc:             string;
+  cat:              string;
+  dayOfMonth:       number; // 1–31
+  active:           boolean;
+  creditAccountId?: AccountId; // remboursement crédit automatique à la validation
 }
 
 // ── Référence de solde bancaire ───────────────────────────────

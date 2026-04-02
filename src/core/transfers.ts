@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import {
-  Transaction, TransferId, AccountId, IsoDate, TxId,
+  Transaction, TransferId, AccountId, IsoDate,
   mkTxId, mkTransferId
 } from './types';
 
@@ -13,6 +13,7 @@ export interface TransferParams {
   amountCents:   number;
   date:          IsoDate;
   desc:          string;
+  planned?:      boolean;
 }
 
 /**
@@ -28,9 +29,9 @@ export function createTransfer(params: TransferParams): [Transaction, Transactio
     date:        params.date,
     amountCents: params.amountCents,
     kind:        'transfer_out',
-    cat:         'transfer',
+    cat:         '↔️',
     desc:        params.desc,
-    planned:     false,
+    planned:     params.planned ?? false,
     recurring:   false,
     transferId,
   };
@@ -41,9 +42,9 @@ export function createTransfer(params: TransferParams): [Transaction, Transactio
     date:        params.date,
     amountCents: params.amountCents,
     kind:        'transfer_in',
-    cat:         'transfer',
+    cat:         '↔️',
     desc:        params.desc,
-    planned:     false,
+    planned:     params.planned ?? false,
     recurring:   false,
     transferId,
   };

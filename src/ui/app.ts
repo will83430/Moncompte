@@ -8,6 +8,7 @@ import { AppData, Account, CustomCategory } from '../core/types';
 import { Router } from './router';
 import { PinUI } from './pin';
 import { scheduleAutoBackup, restoreFromFilesystem } from '../services/backup';
+import { computeBalance } from '../core/balance';
 
 // ── État global réactif ───────────────────────────────────────
 // Un seul objet mutable, toutes les mutations passent par setState()
@@ -23,7 +24,48 @@ export async function setState(next: AppData): Promise<void> {
   _state = next;
   await Store.save(next);
   scheduleAutoBackup(next);
-  Router.refresh();
+  updateWidget(next);
+  Router.refresh(next);
+}
+
+function updateWidget(data: AppData): void {
+  try {
+    const cap = (window as any).Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+    const plugin = cap.Plugins?.WidgetPlugin;
+    if (!plugin) return;
+
+    // Compte courant principal (cc)
+    const accountId = 'cc';
+    const month = new Date().toISOString().slice(0, 7);
+    const txs = data.txs.filter(t =>
+      t.accountId === accountId && t.date.startsWith(month) && !t.planned
+    );
+    const inc = txs.filter(t => t.kind === 'income'  || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
+    const exp = txs.filter(t => t.kind === 'expense' || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
+
+    const anchor = data.anchors.find(a => a.accountId === accountId);
+    let displayBal = inc - exp;
+    if (anchor) {
+      const bal = computeBalance(month as any, anchor, data.txs);
+      if (bal !== null) displayBal = bal;
+    }
+
+    const sign = displayBal >= 0 ? '+' : '';
+    const fmtW = (c: number) => {
+      const v = c / 100;
+      return v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f') + '\u00a0€';
+    };
+    const [y, m] = month.split('-').map(Number) as [number, number];
+    const label = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+    plugin.updateWidget({
+      month:    label.charAt(0).toUpperCase() + label.slice(1),
+      balance:  sign + fmtW(displayBal),
+      income:   fmtW(inc),
+      expenses: fmtW(exp),
+    });
+  } catch { /* widget non dispo */ }
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────
@@ -61,6 +103,7 @@ export async function boot(): Promise<void> {
 
   _state = await Store.load();
   PinUI.hide();
+  updateWidget(_state);
   Router.init(_state);
 }
 

@@ -3,7 +3,7 @@
    Fonction PURE : aucun accès à l'état global, 100% testable
    ═══════════════════════════════════════════════════════════════ */
 
-import { BalanceAnchor, MonthKey, Transaction, isRealIncome, isRealExpense } from './types';
+import { BalanceAnchor, MonthKey, Transaction } from './types';
 
 // ── Helpers MonthKey ──────────────────────────────────────────
 
@@ -35,10 +35,15 @@ export function currentMonthKey(): MonthKey {
 function monthBilan(mk: MonthKey, accountId: string, txs: Transaction[]): number {
   const monthly = txs.filter(t =>
     t.accountId === accountId &&
-    t.date.startsWith(mk)
+    t.date.startsWith(mk) &&
+    !t.planned
   );
-  const inc = monthly.filter(isRealIncome).reduce((s, t) => s + t.amountCents, 0);
-  const exp = monthly.filter(isRealExpense).reduce((s, t) => s + t.amountCents, 0);
+  const inc = monthly
+    .filter(t => t.kind === 'income' || t.kind === 'transfer_in')
+    .reduce((s, t) => s + t.amountCents, 0);
+  const exp = monthly
+    .filter(t => t.kind === 'expense' || t.kind === 'transfer_out')
+    .reduce((s, t) => s + t.amountCents, 0);
   return inc - exp;
 }
 
@@ -99,16 +104,19 @@ export function computeProjectedBalance(
   const realBalance = computeBalance(targetMonth, anchor, txs);
   if (realBalance === null) return null;
 
-  // Ajouter les transactions prévues du mois cible
+  // Ajouter les transactions prévues du mois cible (income/expense + transfer_in/out)
   const planned = txs.filter(t =>
     t.accountId === anchor.accountId &&
     t.date.startsWith(targetMonth) &&
-    t.planned &&
-    (t.kind === 'income' || t.kind === 'expense')
+    t.planned
   );
 
-  const plannedInc = planned.filter(t => t.kind === 'income').reduce((s, t) => s + t.amountCents, 0);
-  const plannedExp = planned.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amountCents, 0);
+  const plannedInc = planned
+    .filter(t => t.kind === 'income' || t.kind === 'transfer_in')
+    .reduce((s, t) => s + t.amountCents, 0);
+  const plannedExp = planned
+    .filter(t => t.kind === 'expense' || t.kind === 'transfer_out')
+    .reduce((s, t) => s + t.amountCents, 0);
 
   return realBalance + plannedInc - plannedExp;
 }
