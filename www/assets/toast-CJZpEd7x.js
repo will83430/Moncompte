@@ -1,0 +1,1 @@
+import{t as e}from"./rolldown-runtime-lhHHWwHU.js";var t=e({toast:()=>r}),n=null;function r(e,t=2500){let r=document.getElementById(`toast`);r||(r=document.createElement(`div`),r.id=`toast`,document.body.appendChild(r)),r.textContent=e,r.classList.add(`visible`),n&&clearTimeout(n),n=setTimeout(()=>r.classList.remove(`visible`),t)}window.toast=r;export{t as n,r as t};

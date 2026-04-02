@@ -296,6 +296,15 @@ optgroup{background:#f9f9f9;color:var(--text2);font-style:normal;}
 .modal-btn-cancel:hover{border-color:var(--teal);color:var(--teal);}
 .modal-btn-save:hover{filter:brightness(1.08);}
 
+/* ─── ANALYSE CATÉGORIES ─── */
+.analyse-list{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
+.analyse-item{display:flex;flex-direction:column;gap:4px;}
+.analyse-cat{font-size:13px;font-weight:500;color:var(--text);}
+.analyse-bar-wrap{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;}
+.analyse-bar{height:100%;border-radius:4px;transition:width .4s ease;}
+.analyse-amount{font-size:12px;color:var(--text2);}
+.analyse-pct{color:var(--text3);margin-left:4px;}
+
 /* ─── TOAST ─── */
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--text);color:#fff;font-size:13px;font-weight:500;padding:11px 20px;border-radius:10px;box-shadow:var(--shadow-md);opacity:0;transition:all .25s;z-index:300;white-space:nowrap;pointer-events:none;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}

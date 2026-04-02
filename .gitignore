@@ -2,3 +2,7 @@ node_modules/
 android/
 import_history.json
 www/import_history.json
+www/moncarnetcompte_backup.json
+www/cc_missing_txs.json
+src/moncarnetcompte_backup.json
+src/css/
