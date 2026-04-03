@@ -285,16 +285,20 @@
   <!-- Sync WiFi -->
   <div class="card">
     <div class="card-title">Synchronisation WiFi</div>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Lance <code>node sync-server.mjs</code> sur le PC, puis scanne le QR ou entre l'adresse.</p>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Lance <code>node sync-server.mjs</code> sur le PC, puis scanne le QR ou entre l'adresse et le token affiché dans le terminal.</p>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
       <input id="sync-url" type="url" placeholder="http://192.168.1.x:7789"
         style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:'Inter',sans-serif;background:var(--card);">
       <button onclick="syncScanQr()"
         style="padding:10px 14px;border-radius:10px;border:none;background:var(--teal);color:#fff;font-size:18px;cursor:pointer;">📷</button>
     </div>
+    <div style="margin-bottom:8px;">
+      <input id="sync-token" type="text" placeholder="Token (affiché dans le terminal)"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:'Inter',sans-serif;background:var(--card);letter-spacing:2px;">
+    </div>
     <div style="display:flex;gap:8px;">
-      <button onclick="syncFromPc()" class="small-btn" style="flex:1;background:var(--blue);">⬇ PC → Tél</button>
-      <button onclick="syncToPc()"   class="small-btn" style="flex:1;background:var(--blue);opacity:.75;">⬆ Tél → PC</button>
+      <button onclick="syncFromPc()" class="small-btn" style="flex:1;background:var(--blue);">⬇ Recevoir</button>
+      <button onclick="syncToPc()"   class="small-btn" style="flex:1;background:var(--blue);opacity:.75;">⬆ Envoyer</button>
     </div>
     <div id="sync-status" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px;"></div>
   </div>

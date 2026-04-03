@@ -17,7 +17,7 @@ import './ui/toast';
 // Services exposés globalement
 import { exportJSON, importJSON, exportCSV } from './services/backup';
 import { getState, setState } from './ui/app';
-import { getSyncUrl, saveSyncUrl, fetchFromPc, pushToPc } from './services/sync';
+import { getSyncUrl, saveSyncUrl, getSyncToken, saveSyncToken, fetchFromPc, pushToPc } from './services/sync';
 
 (window as any).exportJSON = () => exportJSON(getState());
 (window as any).exportCSV  = () => exportCSV(getState());
@@ -70,13 +70,21 @@ function _syncGetUrl(): string {
   return url;
 }
 
+function _syncGetToken(): string {
+  const input = document.getElementById('sync-token') as HTMLInputElement | null;
+  const token = input?.value.trim() || getSyncToken();
+  if (input && token) { saveSyncToken(token); input.value = token; }
+  return token;
+}
+
 (window as any).syncFromPc = async () => {
   const { toast } = await import('./ui/toast');
   const url = _syncGetUrl();
   if (!url) return;
+  const token = _syncGetToken();
   _syncStatus('Connexion au serveur…');
   try {
-    const data = await fetchFromPc(url);
+    const data = await fetchFromPc(url, token);
     await setState(data);
     _syncStatus(`✓ ${data.txs.length} transactions importées depuis le PC`);
     toast(`✓ Sync PC → Tél réussie (${data.txs.length} tx)`);
@@ -90,9 +98,10 @@ function _syncGetUrl(): string {
   const { toast } = await import('./ui/toast');
   const url = _syncGetUrl();
   if (!url) return;
+  const token = _syncGetToken();
   _syncStatus('Envoi vers le PC…');
   try {
-    await pushToPc(url, getState());
+    await pushToPc(url, token, getState());
     _syncStatus('✓ Données envoyées vers le PC');
     toast('✓ Sync Tél → PC réussie');
   } catch (e: any) {
@@ -114,10 +123,15 @@ function _syncGetUrl(): string {
 
 // Restaurer l'URL de sync sauvegardée au démarrage
 document.addEventListener('DOMContentLoaded', () => {
-  const saved = getSyncUrl();
-  if (saved) {
+  const savedUrl = getSyncUrl();
+  if (savedUrl) {
     const input = document.getElementById('sync-url') as HTMLInputElement | null;
-    if (input) input.value = saved;
+    if (input) input.value = savedUrl;
+  }
+  const savedToken = getSyncToken();
+  if (savedToken) {
+    const input = document.getElementById('sync-token') as HTMLInputElement | null;
+    if (input) input.value = savedToken;
   }
 });
 

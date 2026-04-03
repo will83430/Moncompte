@@ -15,16 +15,20 @@
  *   GET  /qr            → page HTML avec QR code (pour navigateur PC)
  */
 
-import http from 'http';
-import fs   from 'fs';
-import path from 'path';
-import os   from 'os';
+import http   from 'http';
+import fs     from 'fs';
+import path   from 'path';
+import os     from 'os';
+import crypto from 'crypto';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 
 const PORT      = 7789;
 const DATA_FILE = path.join(process.cwd(), 'www', 'moncarnetcompte_backup.json');
+
+// Token généré une fois au démarrage — à saisir dans l'app
+const TOKEN = crypto.randomBytes(4).toString('hex'); // ex: a3f8c21b
 
 // ── Trouver l'IP locale ───────────────────────────────────────
 function getLocalIp() {
@@ -53,7 +57,13 @@ async function printQr(url) {
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+// ── Vérification token ────────────────────────────────────────
+function isAuthorized(req) {
+  const auth = req.headers['authorization'] ?? '';
+  return auth === `Bearer ${TOKEN}`;
 }
 
 // ── Serveur HTTP ──────────────────────────────────────────────
@@ -75,6 +85,12 @@ const server = http.createServer((req, res) => {
 
   // GET /data → envoie les données PC
   if (req.method === 'GET' && url.pathname === '/data') {
+    if (!isAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Token invalide' }));
+      console.log('[!] Accès refusé /data (mauvais token)');
+      return;
+    }
     if (!fs.existsSync(DATA_FILE)) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Pas de données PC disponibles' }));
@@ -89,16 +105,21 @@ const server = http.createServer((req, res) => {
 
   // POST /data → reçoit les données du téléphone
   if (req.method === 'POST' && url.pathname === '/data') {
+    if (!isAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Token invalide' }));
+      console.log('[!] Accès refusé /data (mauvais token)');
+      return;
+    }
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       try {
         JSON.parse(body); // valider JSON
-        const backup = path.join(process.cwd(), 'www', 'moncarnetcompte_backup_tel.json');
-        fs.writeFileSync(backup, body, 'utf8');
+        fs.writeFileSync(DATA_FILE, body, 'utf8');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
-        console.log(`[←] Données téléphone reçues → ${backup} (${body.length} octets)`);
+        console.log(`[←] Données téléphone reçues → ${DATA_FILE} (${body.length} octets)`);
       } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'JSON invalide' }));
@@ -139,6 +160,7 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log('══════════════════════════════════════════\n');
   await printQr(baseUrl);
   console.log('  Scannez le QR avec MonCompte sur Android');
+  console.log(`\n  Token : ${TOKEN}  ← à saisir dans l'app`);
   console.log('  Ctrl+C pour arrêter\n');
   console.log(`  Page QR navigateur : http://localhost:${PORT}/qr\n`);
 });
