@@ -8,6 +8,7 @@ import { AppData, Account, CustomCategory } from '../core/types';
 import { Router } from './router';
 import { PinUI } from './pin';
 import { scheduleAutoBackup, restoreFromFilesystem } from '../services/backup';
+import { scheduleRecurringReminder } from '../services/notifications';
 import { computeBalance } from '../core/balance';
 
 // ── État global réactif ───────────────────────────────────────
@@ -26,6 +27,7 @@ export async function setState(next: AppData): Promise<void> {
   scheduleAutoBackup(next);
   updateWidget(next);
   Router.refresh(next);
+  scheduleRecurringReminder(next, 'cc').catch(() => {}); // best-effort, pas bloquant
 }
 
 function updateWidget(data: AppData): void {

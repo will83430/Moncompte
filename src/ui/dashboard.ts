@@ -10,6 +10,16 @@ import { toast } from './toast';
 import { fmt, fmtDateShort } from './format';
 import { getCatDef } from '../core/categories';
 
+// ── Recherche ─────────────────────────────────────────────────
+
+let _searchQuery = '';
+let _lastParams: { data: AppData; month: MonthKey; accountId: AccountId; mode: 'reel' | 'previsionnel' } | null = null;
+
+export function searchTx(query: string) {
+  _searchQuery = query.toLowerCase().trim();
+  if (_lastParams) renderDashboard(_lastParams.data, _lastParams.month, _lastParams.accountId, _lastParams.mode);
+}
+
 // ── Rendu principal ───────────────────────────────────────────
 
 let _dashData: AppData | null = null;
@@ -21,6 +31,7 @@ export function renderDashboard(
   mode:      'reel' | 'previsionnel'
 ) {
   _dashData = data;
+  _lastParams = { data, month, accountId, mode };
   const list = document.getElementById('tx-list');
   if (!list) return;
 
@@ -44,13 +55,28 @@ export function renderDashboard(
     }
   }
 
-  const txs = data.txs
+  let txs = data.txs
     .filter(t => t.accountId === accountId && t.date.startsWith(month))
     .filter(t => mode === 'previsionnel' ? true : !t.planned)
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  // Filtre recherche
+  if (_searchQuery) {
+    txs = txs.filter(t => {
+      const cat = getCatDef(t.cat, data.customCats);
+      const amt = fmt(t.amountCents).replace(/\s/g, '');
+      return (
+        t.desc.toLowerCase().includes(_searchQuery) ||
+        cat.label.toLowerCase().includes(_searchQuery) ||
+        amt.includes(_searchQuery)
+      );
+    });
+  }
+
   if (txs.length === 0) {
-    list.innerHTML = `<div class="tx-empty">Aucune transaction ce mois-ci</div>`;
+    list.innerHTML = _searchQuery
+      ? `<div class="tx-empty">Aucun résultat pour « ${_searchQuery} »</div>`
+      : `<div class="tx-empty">Aucune transaction ce mois-ci</div>`;
     return;
   }
 
@@ -165,6 +191,7 @@ export async function deleteTx(id: TxId) {
 (window as any).confirmTx    = confirmTx;
 (window as any).revertTx     = revertTx;
 (window as any).deleteTx     = deleteTx;
+(window as any).searchTx     = searchTx;
 
 // ── Helpers ───────────────────────────────────────────────────
 
