@@ -24,8 +24,30 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 
-const PORT      = 7789;
-const DATA_FILE = path.join(process.cwd(), 'www', 'moncarnetcompte_backup.json');
+const PORT        = 7789;
+const DATA_FILE   = path.join(process.cwd(), 'www', 'moncarnetcompte_backup.json');
+const SNAPSHOT_DIR = path.join(process.cwd(), 'www', 'snapshots');
+const MAX_SNAPSHOTS = 10;
+
+// ── Rotation des snapshots ────────────────────────────────────
+function saveSnapshot() {
+  if (!fs.existsSync(DATA_FILE)) return;
+  fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
+
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const dest = path.join(SNAPSHOT_DIR, `backup_${ts}.json`);
+  fs.copyFileSync(DATA_FILE, dest);
+
+  // Garder uniquement les MAX_SNAPSHOTS plus récents
+  const files = fs.readdirSync(SNAPSHOT_DIR)
+    .filter(f => f.startsWith('backup_') && f.endsWith('.json'))
+    .sort();
+  if (files.length > MAX_SNAPSHOTS) {
+    files.slice(0, files.length - MAX_SNAPSHOTS)
+      .forEach(f => fs.unlinkSync(path.join(SNAPSHOT_DIR, f)));
+  }
+  console.log(`[✓] Snapshot sauvegardé : ${path.basename(dest)}`);
+}
 
 // Token généré une fois au démarrage — à saisir dans l'app
 const TOKEN = crypto.randomBytes(4).toString('hex'); // ex: a3f8c21b
@@ -33,12 +55,16 @@ const TOKEN = crypto.randomBytes(4).toString('hex'); // ex: a3f8c21b
 // ── Trouver l'IP locale ───────────────────────────────────────
 function getLocalIp() {
   const nets = os.networkInterfaces();
-  for (const ifaces of Object.values(nets)) {
+  let fallback = '127.0.0.1';
+  // Priorité : WiFi (wl*) > ethernet (en*/eth*)
+  for (const [name, ifaces] of Object.entries(nets)) {
     for (const iface of (ifaces ?? [])) {
-      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+      if (iface.family !== 'IPv4' || iface.internal) continue;
+      if (name.startsWith('wl')) return iface.address; // WiFi en priorité
+      fallback = iface.address;
     }
   }
-  return '127.0.0.1';
+  return fallback;
 }
 
 // ── QR code ASCII dans le terminal ───────────────────────────
@@ -67,7 +93,7 @@ function isAuthorized(req) {
 }
 
 // ── Serveur HTTP ──────────────────────────────────────────────
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   setCors(res);
 
   if (req.method === 'OPTIONS') {
@@ -116,6 +142,7 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         JSON.parse(body); // valider JSON
+        saveSnapshot();   // snapshot avant d'écraser
         fs.writeFileSync(DATA_FILE, body, 'utf8');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
@@ -128,23 +155,31 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // GET /qr → page HTML avec QR code
+  // GET /qr → page HTML avec QR code généré en local
   if (req.method === 'GET' && url.pathname === '/qr') {
     const ip = getLocalIp();
     const syncUrl = `http://${ip}:${PORT}`;
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<!DOCTYPE html>
+    try {
+      const QRCode = require('qrcode');
+      const qrDataUrl = await QRCode.toDataURL(syncUrl, { width: 250, margin: 2 });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="utf-8"><title>MonCompte Sync</title>
 <style>body{font-family:sans-serif;text-align:center;padding:2rem;background:#f0f4f8}
-h1{color:#1e3a5f}img{margin:1rem auto;display:block}code{background:#e2e8f0;padding:.2rem .5rem;border-radius:4px}</style>
+h1{color:#1e3a5f}img{margin:1rem auto;display:block;border-radius:12px}code{background:#e2e8f0;padding:.2rem .5rem;border-radius:4px}
+p.token{font-size:1.2rem;font-weight:bold;background:#1e3a5f;color:#fff;display:inline-block;padding:.4rem 1rem;border-radius:8px;letter-spacing:3px}</style>
 </head>
 <body>
 <h1>MonCompte — Sync WiFi</h1>
 <p>Scannez ce QR avec l'appli MonCompte sur votre téléphone :</p>
-<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(syncUrl)}" width="250" height="250" alt="QR">
+<img src="${qrDataUrl}" width="250" height="250" alt="QR">
 <p>Ou entrez manuellement : <code>${syncUrl}</code></p>
+<p>Token : <span class="token">${TOKEN}</span></p>
 </body></html>`);
+    } catch {
+      res.writeHead(500); res.end('Erreur génération QR');
+    }
     return;
   }
 
