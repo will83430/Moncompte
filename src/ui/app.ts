@@ -9,6 +9,7 @@ import { Router } from './router';
 import { PinUI } from './pin';
 import { scheduleAutoBackup, restoreFromFilesystem } from '../services/backup';
 import { scheduleRecurringReminder } from '../services/notifications';
+import { scheduleAutoSync } from '../services/sync';
 import { computeBalance } from '../core/balance';
 
 // ── État global réactif ───────────────────────────────────────
@@ -25,6 +26,7 @@ export async function setState(next: AppData): Promise<void> {
   _state = next;
   await Store.save(next);
   scheduleAutoBackup(next);
+  scheduleAutoSync(next);
   updateWidget(next);
   Router.refresh(next);
   scheduleRecurringReminder(next, 'cc').catch(() => {}); // best-effort, pas bloquant
