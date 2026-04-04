@@ -2,109 +2,110 @@
 
 Application de suivi financier personnel — style bancaire CIC, installable sur Android (APK natif via Capacitor).
 
+## Stack technique
+
+| Couche | Technos |
+|--------|---------|
+| Frontend | TypeScript + Vite |
+| Mobile | Capacitor v8 (Android) |
+| Tests | Vitest |
+| Chiffrement | Web Crypto API (AES-GCM 256 bits + PBKDF2) |
+| Stockage | LocalStorage chiffré + Filesystem Capacitor |
+| Sync | Serveur HTTP Node (WiFi LAN, port 7789) |
+
 ## Structure du projet
 
 ```text
-Moncompte/
-├── index.html        ← Application principale
-├── setup.html        ← Import / configuration initiale
-├── js/
-│   ├── app.js        ← Logique applicative complète
-│   ├── pin.js        ← Gestion code PIN
-│   └── storage.js    ← Chiffrement AES-256 + LocalStorage
-├── css/app.css       ← Styles
-├── www/              ← Copie compilée pour Capacitor (APK)
-├── android/          ← Projet Android natif (hors git)
-└── capacitor.config.json
+src/
+├── core/       — logique métier pure (types, balance, virements, catégories, migrations)
+├── ui/         — dashboard, stats, graphiques 3D, PIN, récurrentes
+├── storage/    — chiffrement AES-GCM, persistence
+└── services/   — backup, import CSV CIC, sync WiFi
+www/            — build Vite (webDir Capacitor)
+android/        — projet Android natif (hors git)
+sync-server.mjs — serveur de sync WiFi (Node, port 7789)
+tests/core/     — suites Vitest (balance, transfers, migrations, service)
 ```
 
 ## Fonctionnalités
 
 ### Dashboard
-
-- Ajout de transactions (revenus / dépenses) avec 50+ catégories
-- Recherche par libellé ou montant
-- Filtres : type, catégorie, montant min/max
-- Tri : date, montant, catégorie
+- Ajout de transactions (revenus / dépenses / virements) avec 50+ catégories
+- Recherche par libellé, catégorie ou montant
 - Dépenses récurrentes (import automatique en début de mois)
-- Import relevé CIC (glisser-déposer CSV)
+- Import relevé CIC (CSV)
+- Mode Réel / Prévisionnel
 
 ### Statistiques
-
 - Graphique revenus / dépenses 3D — 3, 6 ou 12 mois
-- Donut 3D cliquable par catégorie → liste des transactions
-- Comparaison mois vs mois sur chaque indicateur
+- Donut 3D cliquable par catégorie
 
 ### Analyse
-
-- Graphique évolution du solde 3D — 3, 6 ou 12 mois
-- Solde bancaire réel (projection depuis un solde de référence)
-- Catégories personnalisées (ajout / suppression)
+- Graphique évolution du solde 3D
 - Export JSON / CSV
 - Import JSON (restauration)
 
 ### Sécurité
-
-- Code PIN à 4 chiffres obligatoire au démarrage
-- Chiffrement **AES-GCM 256 bits** (Web Crypto API)
-- Données stockées chiffrées dans le LocalStorage
+- Code PIN 4 chiffres (PBKDF2 100k itérations)
+- Chiffrement **AES-GCM 256 bits** (Web Crypto API natif)
+- Clé jamais persistée
 
 ### Android
+- APK natif signé via Capacitor v8
+- Widget écran d'accueil : solde (vert/rouge), prévision fin de mois, barre budget, revenus/dépenses
+- Sauvegarde auto Filesystem après chaque modification
+- Restauration automatique au démarrage
 
-- APK natif signé via Capacitor v6
-- Widget écran d'accueil (solde du mois)
-- Sauvegarde automatique après chaque modification
-- Restauration automatique au démarrage si données vides
-- Mise à jour sans désinstallation : `adb install -r app-release.apk`
-
-## Installation APK sur Android
-
-### Avec câble USB
-
-```bash
-adb install -r /chemin/vers/app-release.apk
-```
-
-### Via ADB WiFi (sans câble)
-
-1. Paramètres → Options développeur → Débogage sans fil
-2. Noter l'IP et le port affichés
+### Sync WiFi PC ↔ Téléphone
+- Authentification par token (affiché au démarrage du serveur)
+- Sync automatique à chaque modification (debounce 5s)
+- Boutons manuels Envoyer / Recevoir
 
 ```bash
-adb connect 192.168.1.X:PORT
-adb install -r app-release.apk
+# Lancer le serveur sur le PC
+node sync-server.mjs
+
+# Tunnel USB (si pas de WiFi commun)
+adb reverse tcp:7789 tcp:7789
+# Puis utiliser http://localhost:7789 dans l'app
 ```
 
 ## Build APK
 
 ```bash
-# Synchroniser les sources web vers www/
-cp js/app.js www/js/app.js
-cp css/app.css www/css/app.css
-cp index.html www/index.html
+# Prérequis : Node.js 22+ (nvm use 22)
 
-# Sync Capacitor
+# Build web
+npx vite build
+
+# Sync Capacitor + APK release signé
 npx cap sync android
-
-# Compiler l'APK release signé
 cd android && ./gradlew assembleRelease
 # APK : android/app/build/outputs/apk/release/app-release.apk
+
+# Installer sur le téléphone
+adb install -r android/app/build/outputs/apk/release/app-release.apk
 ```
 
-Le keystore de signature est à `/home/will/moncompte.keystore` (hors git).
+Keystore de signature : `/home/will/moncompte.keystore` (hors git — ne pas perdre).
+
+## Tests
+
+```bash
+npx vitest run
+```
 
 ## Sauvegarde des données
 
-Les données sont chiffrées dans le LocalStorage de la WebView Android.
-
-- **Sauvegarde auto** : fichier `moncarnetcompte_backup.json` écrit après chaque modification — conservé lors des mises à jour via `adb install -r`
-- **Export manuel** : Analyse → Export JSON → fichier daté dans Téléchargements
-- **Avant désinstallation complète** : toujours exporter manuellement d'abord
+- **Auto** : `moncarnetcompte_backup.json` écrit après chaque modification (Filesystem Android)
+- **Sync WiFi** : envoi automatique vers le PC à chaque modification
+- **Export manuel** : Analyse → Export JSON
+- **Mise à jour APK** : `adb install -r` conserve toutes les données (pas de `pm clear`)
 
 ## Branches
 
 | Branche | Rôle |
-| --- | --- |
+|---------|------|
 | `main` | Production stable |
-| `dev` | Développement général |
-| `dev-donut3D` | Graphiques 3D (branche active) |
+| `v4` | Développement en cours |
+| `v3` | Version précédente archivée |
