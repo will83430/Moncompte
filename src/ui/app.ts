@@ -8,7 +8,6 @@ import { AppData, Account, CustomCategory } from '../core/types';
 import { Router } from './router';
 import { PinUI } from './pin';
 import { scheduleAutoBackup, restoreFromFilesystem } from '../services/backup';
-import { scheduleRecurringReminder } from '../services/notifications';
 import { scheduleAutoSync } from '../services/sync';
 import { computeBalance } from '../core/balance';
 
@@ -29,7 +28,6 @@ export async function setState(next: AppData): Promise<void> {
   scheduleAutoSync(next);
   updateWidget(next);
   Router.refresh(next);
-  scheduleRecurringReminder(next, 'cc').catch(() => {}); // best-effort, pas bloquant
 }
 
 function updateWidget(data: AppData): void {
@@ -63,11 +61,27 @@ function updateWidget(data: AppData): void {
     const [y, m] = month.split('-').map(Number) as [number, number];
     const label = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
+    // Prévision fin de mois : on convertit les planifiées en confirmées pour le calcul
+    const txsAvecPlanif = data.txs.map(t => t.planned ? { ...t, planned: false } : t);
+    const prevBal = anchor ? computeBalance(month as any, anchor, txsAvecPlanif) : null;
+    const bankLabel = prevBal !== null ? `Prévision\u00a0: ${prevBal >= 0 ? '+' : ''}${fmtW(prevBal)}` : '';
+
+    // Budget restant
+    const budget = data.budget ?? 0;
+    const budgetPct = budget > 0 ? Math.round((exp / budget) * 100) : 0;
+    const budgetLabel = budget > 0
+      ? `${fmtW(Math.max(0, budget - exp))} restant`
+      : '';
+
     plugin.updateWidget({
-      month:    label.charAt(0).toUpperCase() + label.slice(1),
-      balance:  sign + fmtW(displayBal),
-      income:   fmtW(inc),
-      expenses: fmtW(exp),
+      month:       label.charAt(0).toUpperCase() + label.slice(1),
+      balance:     sign + fmtW(displayBal),
+      bankBalance: bankLabel,
+      income:      fmtW(inc),
+      expenses:    fmtW(exp),
+      budgetLabel,
+      budgetPct,
+      negative:    displayBal < 0,
     });
   } catch { /* widget non dispo */ }
 }
