@@ -72,10 +72,12 @@ export async function fetchFromPc(baseUrl: string, token: string): Promise<AppDa
 /** Envoie les données du téléphone vers le PC */
 export async function pushToPc(baseUrl: string, token: string, data: AppData): Promise<void> {
   const url = baseUrl.trim().replace(/\/$/, '');
+  // Nettoie les champs résiduels avant envoi (exported, etc.)
+  const { exported: _, ...clean } = data as any;
   const res = await fetch(`${url}/data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-    body: JSON.stringify(data),
+    body: JSON.stringify(clean),
   });
   if (res.status === 401) throw new Error('Token invalide');
   if (!res.ok) throw new Error(`Serveur: ${res.status} ${res.statusText}`);
