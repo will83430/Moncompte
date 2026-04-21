@@ -56,10 +56,12 @@ export function effect(fn: () => void, deps: Signal<unknown>[]): () => void {
 
 // ── État global ───────────────────────────────────────────────
 
-export const appData   = signal<AppData | null>(null);
-export const currentRoute = signal<string>('dash');
+export const appData          = signal<AppData | null>(null);
+export const currentRoute     = signal<string>('dash');
 export const currentAccountId = signal<string>('cc');
-export const isLocked  = signal<boolean>(true);
+export const isLocked         = signal<boolean>(true);
+export const currentViewMonth = signal<string>(new Date().toISOString().slice(0, 7));
+export const currentViewMode  = signal<'reel' | 'previsionnel'>('reel');
 
 // ── Actions ───────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { h } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { useSignal } from '../hooks/useSignal';
 import { appData, currentAccountId, currentRoute } from '../../store';
-import { renderStats } from '../stats';
+import { renderStats, setStatsRefreshCallback } from '../stats';
 import { currentMonthKey } from '../../core/balance';
 import { useState } from 'preact/hooks';
 import type { MonthKey, AccountId } from '../../core/types';
@@ -28,9 +28,10 @@ export function StatsPage() {
   const [mode,  setMode]  = useState<'reel'|'previsionnel'>('reel');
 
   useEffect(() => {
-    if (!data || !ref.current) return;
-    const el = document.getElementById('sec-stats');
-    if (el) renderStats(data, month, accountId, mode);
+    if (!data) return;
+    renderStats(data, month, accountId, mode);
+    setStatsRefreshCallback(() => renderStats(data, month, accountId, mode));
+    return () => setStatsRefreshCallback(() => {});
   }, [data, month, accountId, mode]);
 
   return (
@@ -44,6 +45,7 @@ export function StatsPage() {
         <button class={`mode-btn${mode === 'reel' ? ' mode-on' : ''}`} onClick={() => setMode('reel')}>Réel</button>
         <button class={`mode-btn${mode === 'previsionnel' ? ' mode-on' : ''}`} onClick={() => setMode('previsionnel')}>Prévisionnel</button>
       </div>
+      <div id="stats-body"></div>
     </div>
   );
 }

@@ -13,21 +13,24 @@ import { computeBalance } from '../core/balance';
 
 // ── État global réactif ───────────────────────────────────────
 // Un seul objet mutable, toutes les mutations passent par setState()
+// En v5 : délègue au store réactif (signals)
+
+import { appData as _appDataSignal, setAppData as _setAppData } from '../store';
 
 let _state: AppData | null = null;
 
 export function getState(): AppData {
+  // Priorité au signal v5, fallback sur _state local
+  const fromSignal = _appDataSignal.value;
+  if (fromSignal) return fromSignal;
   if (!_state) throw new Error('App non initialisée');
   return _state;
 }
 
 export async function setState(next: AppData): Promise<void> {
   _state = next;
-  await Store.save(next);
-  scheduleAutoBackup(next);
-  scheduleAutoSync(next);
+  await _setAppData(next);
   updateWidget(next);
-  Router.refresh(next);
 }
 
 function updateWidget(data: AppData): void {

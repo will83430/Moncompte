@@ -109,7 +109,7 @@ export function PinPage() {
   }, [buffer, locked, submit]);
 
   return (
-    <div class="pin-screen">
+    <div id="pin-screen">
       <div class="pin-header">
         <div class="pin-logo">MonCarnetCompte</div>
         <div class="pin-subtitle">{subtitle}</div>
@@ -123,7 +123,7 @@ export function PinPage() {
 
       {error && <div class="pin-error visible">{error}</div>}
 
-      <div class="pin-keypad">
+      <div class="pin-pad">
         {DIGITS.map((d, i) => (
           d === '' ? <div key={i} /> :
           <button
@@ -139,3 +139,4 @@ export function PinPage() {
     </div>
   );
 }
+

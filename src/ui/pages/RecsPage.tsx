@@ -73,7 +73,7 @@ export function RecsPage() {
         </div>
       )}
 
-      <div class="rec-list">
+      <div style="padding:0 14px 80px;">
         {recs.length === 0 ? (
           <p class="tx-empty">Aucune récurrente — appuyez sur + pour en créer une</p>
         ) : recs.map(r => (
@@ -116,7 +116,7 @@ function RecItem({ rec, data, targetMonth, onEdit, onDelete, onApply }: {
         </div>
       </div>
       <div class="rec-right">
-        <div class={`rec-amt ${rec.kind === 'income' ? 'pos' : 'neg'}`}>{rec.kind === 'income' ? '+' : '-'}{fmt(rec.amountCents)}</div>
+        <div class={`rec-amt ${rec.kind === 'income' ? 'inc' : 'exp'}`}>{rec.kind === 'income' ? '+' : '-'}{fmt(rec.amountCents)}</div>
         <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end;">
           {isPending && <button class="rec-apply-btn" onClick={() => onApply(rec.id)}>↓ Ce mois</button>}
           <button class="rec-edit-btn" onClick={() => onEdit(rec.id)}>✏️</button>

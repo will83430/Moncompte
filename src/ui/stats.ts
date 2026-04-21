@@ -8,7 +8,7 @@ import { getCatDef } from '../core/categories';
 import { getBankBalance } from '../core/service';
 import { fmt } from './format';
 
-let _barPeriod = 6;
+let _barPeriod = 12;
 let _balPeriod = 12;
 
 // ── Rendu principal ───────────────────────────────────────────
@@ -42,7 +42,7 @@ export function renderStats(
   const prevDays = new Date(...(prevMonthKey.split('-').map((v, i) => i === 1 ? parseInt(v) : parseInt(v)) as [number, number]));
 
   const account = data.accounts.find(a => a.id === accountId);
-  const el = document.getElementById('sec-stats');
+  const el = document.getElementById('stats-body');
   if (!el) return;
 
   // Catégories par dépense + virements (transfer_out groupés sous '↔️')
@@ -85,11 +85,6 @@ export function renderStats(
   })() : '';
 
   el.innerHTML = `
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)">&#9664;</button>
-      <span class="month-label" id="mn-lbl-stats">${monthLabel(month)}</span>
-      <button onclick="changeMonth(1)">&#9654;</button>
-    </div>
     ${creditBlock}
 
     <div class="two-col">
@@ -423,21 +418,18 @@ function buildCatBars(
 
 export function setBarPeriod(n: number) {
   _barPeriod = n;
-  document.querySelectorAll('.bar-prd-btn').forEach(b =>
-    (b as HTMLElement).classList.toggle('prd-on', (b as HTMLElement).dataset['p'] === String(n))
-  );
-  const el = document.getElementById('bar-chart');
-  // Re-render nécessite les données courantes → on force un refresh via Router
-  import('./router').then(({ Router }) => Router.refresh());
+  if (_refreshCb) _refreshCb();
+  else import('./router').then(({ Router }) => Router.refresh());
 }
 
 export function setBalPeriod(n: number) {
   _balPeriod = n;
-  document.querySelectorAll('.prd-btn').forEach(b =>
-    (b as HTMLElement).classList.toggle('prd-on', (b as HTMLElement).dataset['p'] === String(n))
-  );
-  import('./router').then(({ Router }) => Router.refresh());
+  if (_refreshCb) _refreshCb();
+  else import('./router').then(({ Router }) => Router.refresh());
 }
+
+let _refreshCb: (() => void) | null = null;
+export function setStatsRefreshCallback(cb: () => void) { _refreshCb = cb; }
 
 (window as any).setBarPeriod = setBarPeriod;
 (window as any).setBalPeriod = setBalPeriod;

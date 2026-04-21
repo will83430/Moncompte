@@ -81,7 +81,7 @@ function renderBudget(data: AppData, month: MonthKey, accountId: AccountId): voi
 const FIXED_CATS   = ['loyer','energie','telephone','credit_immo','credit_conso','assurance_hab','assurance_auto','assurance_vie','mutuelle','impots','frais_bancaires'];
 const LOISIR_CATS  = ['streaming','cinema','sport_loisir','livre','jeux','voyage','hotel','restaurant','livraison','cafe','vetements','beaute','high_tech','amazon'];
 
-function renderRule(incCents: number, expCents: number, byCat: Map<string, number>): void {
+function renderRule(incCents: number, expCents: number, byCat: Map<string, number>, savingsCents = 0): void {
   const card = document.getElementById('rule-card');
   if (!card) return;
   if (incCents <= 0) { card.style.display = 'none'; return; }
@@ -89,7 +89,9 @@ function renderRule(incCents: number, expCents: number, byCat: Map<string, numbe
 
   const fixed   = FIXED_CATS.reduce((s, id) => s + (byCat.get(id) ?? 0), 0);
   const loisirs = LOISIR_CATS.reduce((s, id) => s + (byCat.get(id) ?? 0), 0);
-  const epargne = Math.max(0, incCents - expCents);
+  // Épargne = virements réels vers comptes épargne + dépenses catégorisées épargne
+  // Fallback sur solde résiduel si aucun virement explicite
+  const epargne = savingsCents > 0 ? savingsCents : Math.max(0, incCents - expCents);
 
   const rows = [
     { name: 'Charges fixes (50%)', val: fixed,   target: incCents * 0.5, color: 'var(--blue)' },
@@ -388,9 +390,22 @@ export function renderAnalyse(
   const TRANSFER_CATS = ['epargne_dep', 'livret', 'epargne'];
   const expTxs = txs.filter(t => t.kind === 'expense' && !TRANSFER_CATS.includes(t.cat));
   const incTxs = txs.filter(t => t.kind === 'income');
+  // Dépenses catégorisées épargne (ancienne méthode)
+  const savingsCatTxs = txs.filter(t => t.kind === 'expense' && TRANSFER_CATS.includes(t.cat));
+  // Virements vers comptes épargne (nouvelle méthode)
+  const savingsAccountIds = new Set(data.accounts.filter(a => a.type === 'savings').map(a => a.id));
+  const savingsTransferIds = new Set(
+    data.txs
+      .filter(t => t.kind === 'transfer_in' && savingsAccountIds.has(t.accountId) && t.date.startsWith(month))
+      .map(t => t.transferId)
+      .filter(Boolean)
+  );
+  const savingsTransferTxs = txs.filter(t => t.kind === 'transfer_out' && t.transferId && savingsTransferIds.has(t.transferId));
 
-  const expCents = expTxs.reduce((s, t) => s + t.amountCents, 0);
-  const incCents = incTxs.reduce((s, t) => s + t.amountCents, 0);
+  const expCents      = expTxs.reduce((s, t) => s + t.amountCents, 0);
+  const incCents      = incTxs.reduce((s, t) => s + t.amountCents, 0);
+  const savingsCents  = savingsCatTxs.reduce((s, t) => s + t.amountCents, 0)
+                      + savingsTransferTxs.reduce((s, t) => s + t.amountCents, 0);
 
   // Map par catégorie (dépenses)
   const byCat = new Map<string, number>();
@@ -403,10 +418,10 @@ export function renderAnalyse(
   const isChecking = accountType === 'checking';
 
   if (isChecking) {
-    renderKpis(incCents, expCents, month);
-    renderConseils(incCents, expCents, byCat);
+    renderKpis(incCents, expCents + savingsCents, month);
+    renderConseils(incCents, expCents + savingsCents, byCat);
     renderBudget(data, month, accountId);
-    renderRule(incCents, expCents, byCat);
+    renderRule(incCents, expCents, byCat, savingsCents);
   } else {
     // Masquer les sections CC
     const kpisCard = document.getElementById('analyse-kpis-card');

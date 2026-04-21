@@ -18,11 +18,11 @@ export function BottomNav() {
       {TABS.map(tab => (
         <button
           key={tab.id}
-          class={`nav-item ${route === tab.id ? 'active' : ''}`}
+          class={`nav-btn ${route === tab.id ? 'active' : ''}`}
           onClick={() => navigate(tab.id)}
         >
           <span class="nav-icon">{tab.icon}</span>
-          <span class="nav-label">{tab.label}</span>
+          {tab.label}
         </button>
       ))}
     </nav>

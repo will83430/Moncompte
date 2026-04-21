@@ -82,29 +82,26 @@ export function SyncPage() {
 
   return (
     <div class="section active" id="sec-sync">
-      <div class="form-card">
+      <div class="card" style="margin:14px;">
         <div class="card-title" style="margin-bottom:16px;">Synchronisation WiFi</div>
 
-        <div class="form-field">
-          <label class="form-label">ADRESSE DU SERVEUR PC</label>
-          <div style="display:flex;gap:8px;">
+        <div class="field">
+          <label>ADRESSE DU SERVEUR PC</label>
+          <div class="inline-row" style="margin-bottom:0;">
             <input
               type="url"
-              class="form-input"
               placeholder="http://192.168.1.x:7789"
               value={url}
               onInput={e => setUrl((e.target as HTMLInputElement).value)}
-              style="flex:1;"
             />
-            <button class="btn-secondary" onClick={scanQr} title="Scanner QR" style="padding:0 14px;font-size:18px;">📷</button>
+            <button class="small-btn" onClick={scanQr} title="Scanner QR" style="padding:0 14px;font-size:18px;">📷</button>
           </div>
         </div>
 
-        <div class="form-field">
-          <label class="form-label">TOKEN</label>
+        <div class="field">
+          <label>TOKEN</label>
           <input
             type="text"
-            class="form-input"
             placeholder="Token affiché sur le serveur"
             value={token}
             onInput={e => setToken((e.target as HTMLInputElement).value)}
@@ -112,16 +109,16 @@ export function SyncPage() {
         </div>
 
         {status && (
-          <div class="sync-status" id="sync-status" style="margin:8px 0;padding:10px;border-radius:8px;background:var(--bg2);font-size:13px;color:var(--text2);">
+          <div id="sync-status" style="margin:8px 0;padding:10px;border-radius:8px;background:var(--bg);font-size:13px;color:var(--text2);">
             {status}
           </div>
         )}
 
         <div style="display:flex;gap:10px;margin-top:8px;">
-          <button class="btn-secondary" onClick={syncFrom} disabled={busy} style="flex:1;">
+          <button class="modal-btn-cancel" onClick={syncFrom} disabled={busy} style="flex:1;">
             ⬇ Recevoir
           </button>
-          <button class="btn-primary" onClick={syncTo} disabled={busy} style="flex:1;">
+          <button class="modal-btn-save" onClick={syncTo} disabled={busy} style="flex:1;">
             ⬆ Envoyer
           </button>
         </div>

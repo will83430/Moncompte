@@ -27,7 +27,7 @@ export function AddPage() {
   const [cat,        setCat]        = useState('autre_dep');
   const [planned,    setPlanned]    = useState(false);
   const [recurring,  setRecurring]  = useState(false);
-  const [transferTo, setTransferTo] = useState('');
+  const [transferTo, setTransferTo] = useState(() => data.accounts.find(a => a.id !== accountId)?.id ?? '');
   const [creditAcc,  setCreditAcc]  = useState('');
 
   const isTransfer = kind === 'transfer';
@@ -46,7 +46,11 @@ export function AddPage() {
   const handleKind = useCallback((k: FormKind) => {
     setKind(k);
     setCat(k === 'income' ? 'salaire' : 'autre_dep');
-  }, []);
+    if (k === 'transfer') {
+      const first = data.accounts.find(a => a.id !== accountId);
+      if (first) setTransferTo(first.id);
+    }
+  }, [data.accounts, accountId]);
 
   const reset = useCallback(() => {
     setKind('expense');
@@ -56,7 +60,7 @@ export function AddPage() {
     setCat('autre_dep');
     setPlanned(false);
     setRecurring(false);
-    setTransferTo('');
+    setTransferTo(data.accounts.find(a => a.id !== accountId)?.id ?? '');
     setCreditAcc('');
   }, []);
 
@@ -109,36 +113,36 @@ export function AddPage() {
 
   return (
     <div class="section active" id="sec-add">
-      <form id="add-form" class="form-card" onSubmit={handleSubmit}>
+      <form id="add-form" class="card" style="margin:14px;" onSubmit={handleSubmit}>
 
-        <div class="type-btns">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
           <button type="button" class={`type-btn${kind === 'expense'  ? ' act-exp'      : ''}`} onClick={() => handleKind('expense')}>Dépense</button>
           <button type="button" class={`type-btn${kind === 'income'   ? ' act-inc'      : ''}`} onClick={() => handleKind('income')}>Revenu</button>
           <button type="button" class={`type-btn${kind === 'transfer' ? ' act-transfer' : ''}`} onClick={() => handleKind('transfer')}>Virement</button>
         </div>
 
-        <div class="form-field">
-          <label class="form-label">DESCRIPTION</label>
-          <input type="text" class="form-input" placeholder="Ex : Loyer, EDF, Salaire…"
+        <div class="field">
+          <label>DESCRIPTION</label>
+          <input type="text" placeholder="Ex : Loyer, EDF, Salaire…"
             value={desc} onInput={e => setDesc((e.target as HTMLInputElement).value)} required />
         </div>
 
-        <div class="form-field">
-          <label class="form-label">MONTANT (€)</label>
-          <input type="text" class="form-input" placeholder="0,00" inputMode="decimal"
+        <div class="field">
+          <label>MONTANT (€)</label>
+          <input type="text" placeholder="0,00" inputMode="decimal"
             value={amount} onInput={e => setAmount((e.target as HTMLInputElement).value)} required />
         </div>
 
-        <div class="form-field">
-          <label class="form-label">DATE</label>
-          <input type="date" class="form-input"
+        <div class="field">
+          <label>DATE</label>
+          <input type="date"
             value={date} onChange={e => setDate((e.target as HTMLInputElement).value)} required />
         </div>
 
         {!isTransfer && (
-          <div class="form-field">
-            <label class="form-label">CATÉGORIE</label>
-            <select class="form-select" value={cat} onChange={e => setCat((e.target as HTMLSelectElement).value)}>
+          <div class="field">
+            <label>CATÉGORIE</label>
+            <select value={cat} onChange={e => setCat((e.target as HTMLSelectElement).value)}>
               {[...catOptions.groups.entries()].map(([grp, cats]) => (
                 <optgroup key={grp} label={`── ${grp}`}>
                   {cats.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
@@ -154,9 +158,9 @@ export function AddPage() {
         )}
 
         {kind === 'expense' && (savingsAccounts.length > 0 || creditAccounts.length > 0) && (
-          <div class="form-field">
-            <label class="form-label">COMPTE LIÉ</label>
-            <select class="form-select" value={creditAcc} onChange={e => setCreditAcc((e.target as HTMLSelectElement).value)}>
+          <div class="field">
+            <label>COMPTE LIÉ</label>
+            <select value={creditAcc} onChange={e => setCreditAcc((e.target as HTMLSelectElement).value)}>
               <option value="">— Aucun —</option>
               {savingsAccounts.length > 0 && (
                 <optgroup label="── Épargne (versement)">
@@ -173,9 +177,9 @@ export function AddPage() {
         )}
 
         {isTransfer && (
-          <div class="form-field">
-            <label class="form-label">VERS LE COMPTE</label>
-            <select class="form-select" value={transferTo} onChange={e => setTransferTo((e.target as HTMLSelectElement).value)}>
+          <div class="field">
+            <label>VERS LE COMPTE</label>
+            <select value={transferTo} onChange={e => setTransferTo((e.target as HTMLSelectElement).value)}>
               {otherAccounts.map(a => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
             </select>
           </div>
@@ -183,34 +187,25 @@ export function AddPage() {
 
         {!isTransfer && (
           <>
-            <label class="form-check">
+            <label class="field-check">
               <input type="checkbox" checked={planned} onChange={e => setPlanned((e.target as HTMLInputElement).checked)} />
-              <div>
-                <div class="form-check-title">Transaction prévue</div>
-                <div class="form-check-sub">À décocher quand elle est effectuée</div>
-              </div>
+              <div><div>Transaction prévue</div><small>À décocher quand elle est effectuée</small></div>
             </label>
-            <label class="form-check">
+            <label class="field-check">
               <input type="checkbox" checked={recurring} onChange={e => setRecurring((e.target as HTMLInputElement).checked)} />
-              <div>
-                <div class="form-check-title">Dépense récurrente</div>
-                <div class="form-check-sub">Se renouvelle automatiquement chaque mois</div>
-              </div>
+              <div><div>Dépense récurrente</div><small>Se renouvelle automatiquement chaque mois</small></div>
             </label>
           </>
         )}
 
         {isTransfer && (
-          <label class="form-check">
+          <label class="field-check">
             <input type="checkbox" checked={planned} onChange={e => setPlanned((e.target as HTMLInputElement).checked)} />
-            <div>
-              <div class="form-check-title">Virement prévu</div>
-              <div class="form-check-sub">À décocher quand il est effectué</div>
-            </div>
+            <div><div>Virement prévu</div><small>À décocher quand il est effectué</small></div>
           </label>
         )}
 
-        <button type="submit" class="btn-primary">Enregistrer</button>
+        <button type="submit" class="modal-btn-save" style="width:100%;margin-top:8px;">Enregistrer</button>
       </form>
     </div>
   );
