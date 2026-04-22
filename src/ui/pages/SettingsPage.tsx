@@ -1,10 +1,11 @@
 import { h } from 'preact';
-import { useState, useCallback, useRef } from 'preact/hooks';
+import { useState, useCallback, useRef, useEffect } from 'preact/hooks';
 import { useSignal } from '../hooks/useSignal';
 import { appData, setAppData, currentAccountId } from '../../store';
 import { addAccount, updateAccount, deleteAccountData } from '../../core/service';
 import { parseCSV, markDuplicates, importCsvRows } from '../../services/csv-import';
 import { getCatDef } from '../../core/categories';
+import { isBioEnabled, isBioAvailable, disableBio } from '../../services/biometric';
 import { toast } from '../toast';
 import type { Account, AccountId, AccountType } from '../../core/types';
 import type { CsvRow } from '../../services/csv-import';
@@ -27,7 +28,11 @@ function genId(): AccountId {
 
 export function SettingsPage() {
   const data = useSignal(appData)!;
-  const [editing, setEditing] = useState<AccountId | 'new' | null>(null);
+  const [editing,    setEditing]    = useState<AccountId | 'new' | null>(null);
+  const [bioEnabled, setBioEnabled] = useState(isBioEnabled());
+  const [bioAvail,   setBioAvail]   = useState(false);
+
+  useEffect(() => { isBioAvailable().then(setBioAvail); }, []);
 
   const startNew  = () => setEditing('new');
   const startEdit = (id: AccountId) => setEditing(id);
@@ -84,6 +89,28 @@ export function SettingsPage() {
           editId={editing === 'new' ? null : editing}
           onClose={close}
         />
+      )}
+
+      {bioAvail && (
+        <div class="card" style="margin-top:20px;padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-weight:600;font-size:14px;">👆 Déverrouillage biométrique</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px;">
+                {bioEnabled ? 'Activé — empreinte digitale' : 'Désactivé'}
+              </div>
+            </div>
+            {bioEnabled && (
+              <button class="modal-btn-cancel" style="padding:8px 14px;font-size:13px;"
+                onClick={() => { disableBio(); setBioEnabled(false); toast('Biométrie désactivée'); }}>
+                Désactiver
+              </button>
+            )}
+            {!bioEnabled && (
+              <div style="font-size:12px;color:var(--text3);">Activez au prochain déverrouillage PIN</div>
+            )}
+          </div>
+        </div>
       )}
 
       <div style="margin-top:20px;">
