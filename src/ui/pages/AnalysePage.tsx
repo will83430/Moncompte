@@ -56,13 +56,39 @@ const ANALYSE_TEMPLATE = `
   </div>
 
   <div class="card">
-    <div class="card-title">Objectifs d'épargne</div>
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+      Objectifs d'épargne
+      <button onclick="toggleGoalForm()" class="small-btn" style="padding:4px 10px;">+ Ajouter</button>
+    </div>
     <div id="goals-list"></div>
-    <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-      <div class="inline-row">
-        <div class="field" style="flex:2;margin-bottom:0;"><input type="text" id="goal-name" placeholder="Nom de l'objectif"></div>
-        <div class="field" style="flex:1;margin-bottom:0;"><input type="number" id="goal-amt" placeholder="Montant" min="1"></div>
-        <button class="small-btn" onclick="addGoalUI()">+</button>
+    <div id="goal-form-wrap" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+      <div class="modal-field">
+        <label>Nom de l'objectif</label>
+        <input type="text" id="goal-name" placeholder="Ex: Vacances, Voiture, Urgences…">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="modal-field">
+          <label>Icône</label>
+          <input type="text" id="goal-icon" placeholder="🎯" maxlength="2">
+        </div>
+        <div class="modal-field">
+          <label>Montant cible (€)</label>
+          <input type="text" id="goal-amt" inputmode="decimal" placeholder="ex: 2000">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="modal-field">
+          <label>Déjà épargné (€)</label>
+          <input type="text" id="goal-saved" inputmode="decimal" placeholder="0">
+        </div>
+        <div class="modal-field">
+          <label>Échéance</label>
+          <input type="month" id="goal-deadline">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+        <button class="modal-btn-cancel" onclick="toggleGoalForm()">Annuler</button>
+        <button class="modal-btn-save" onclick="addGoalUI()">Enregistrer</button>
       </div>
     </div>
   </div>

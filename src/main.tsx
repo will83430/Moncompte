@@ -7,12 +7,18 @@ import { App } from './ui/App';
 import './main.css';
 import { appData, setAppData } from './store';
 import { exportJSON, exportCSV, importJSON, restoreFromFilesystem } from './services/backup';
+import { addGoalUI, deleteGoalUI, updateSavedUI, toggleGoalForm } from './ui/analyse';
 import { getSyncUrl, saveSyncUrl, getSyncToken, saveSyncToken, fetchFromPc, pushToPc } from './services/sync';
 import { toast } from './ui/toast';
 
 render(<App />, document.getElementById('app')!);
 
 // ── Fonctions globales pour onclick HTML (Analyse page) ─────────
+
+(window as any).addGoalUI      = addGoalUI;
+(window as any).deleteGoalUI   = deleteGoalUI;
+(window as any).updateSavedUI  = updateSavedUI;
+(window as any).toggleGoalForm = toggleGoalForm;
 
 (window as any).exportJSON = () => exportJSON(appData.value!);
 (window as any).exportCSV  = () => exportCSV(appData.value!);

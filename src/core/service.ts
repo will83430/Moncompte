@@ -270,6 +270,10 @@ export function addAccount(data: AppData, account: Account): AppData {
   return { ...data, accounts: [...data.accounts, account] };
 }
 
+export function updateAccount(data: AppData, accountId: AccountId, patch: Partial<Omit<Account, 'id'>>): AppData {
+  return { ...data, accounts: data.accounts.map(a => a.id === accountId ? { ...a, ...patch } : a) };
+}
+
 export function deleteAccountData(data: AppData, accountId: AccountId): AppData {
   return {
     ...data,

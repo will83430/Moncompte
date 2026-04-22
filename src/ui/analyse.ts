@@ -112,19 +112,37 @@ function renderRule(incCents: number, expCents: number, byCat: Map<string, numbe
 
 // ── Objectifs ─────────────────────────────────────────────────
 
+function monthsUntil(deadline: string): number {
+  const now = new Date();
+  const end = new Date(deadline + '-01');
+  return Math.max(0, (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth()));
+}
+
 export async function addGoalUI(): Promise<void> {
-  const nameEl = document.getElementById('goal-name') as HTMLInputElement | null;
-  const amtEl  = document.getElementById('goal-amt')  as HTMLInputElement | null;
+  const nameEl     = document.getElementById('goal-name')     as HTMLInputElement | null;
+  const amtEl      = document.getElementById('goal-amt')      as HTMLInputElement | null;
+  const savedEl    = document.getElementById('goal-saved')    as HTMLInputElement | null;
+  const deadlineEl = document.getElementById('goal-deadline') as HTMLInputElement | null;
+  const iconEl     = document.getElementById('goal-icon')     as HTMLInputElement | null;
   if (!nameEl || !amtEl) return;
 
   const label       = nameEl.value.trim();
-  const targetCents = inputToCents(amtEl.value);
-  if (!label || targetCents <= 0) { toast('Remplissez tous les champs'); return; }
+  const targetCents = Math.round(parseFloat((amtEl.value || '0').replace(',', '.')) * 100);
+  if (!label || targetCents <= 0) { toast('Remplissez le nom et le montant'); return; }
+
+  const savedCents = savedEl ? Math.round(parseFloat((savedEl.value || '0').replace(',', '.')) * 100) : 0;
+  const deadline   = deadlineEl?.value || undefined;
+  const icon       = iconEl?.value?.trim() || '🎯';
 
   const state = getState();
-  await setState(addGoal(state, { label, targetCents, savedCents: 0 }));
-  nameEl.value = '';
-  amtEl.value  = '';
+  await setState(addGoal(state, { label, icon, targetCents, savedCents, deadline }));
+  nameEl.value = ''; amtEl.value = '';
+  if (savedEl)    savedEl.value    = '';
+  if (deadlineEl) deadlineEl.value = '';
+  if (iconEl)     iconEl.value     = '';
+
+  const form = document.getElementById('goal-form-wrap');
+  if (form) form.style.display = 'none';
   toast('✓ Objectif ajouté');
 }
 
@@ -133,6 +151,22 @@ export async function deleteGoalUI(id: string): Promise<void> {
   const state = getState();
   await setState(deleteGoal(state, id));
   toast('✓ Objectif supprimé');
+}
+
+export async function updateSavedUI(id: string): Promise<void> {
+  const val = prompt('Montant déjà épargné (€) :');
+  if (val === null) return;
+  const cents = Math.round(parseFloat(val.replace(',', '.')) * 100);
+  if (isNaN(cents) || cents < 0) { toast('Montant invalide'); return; }
+  const state = getState();
+  await setState(updateGoal(state, id, { savedCents: cents }));
+  toast('✓ Épargne mise à jour');
+}
+
+export function toggleGoalForm(): void {
+  const el = document.getElementById('goal-form-wrap');
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 function renderGoals(data: AppData): void {
@@ -144,24 +178,36 @@ function renderGoals(data: AppData): void {
     return;
   }
 
-  // Bilan global toutes périodes pour les objectifs
-  const totalSavedCents = data.goals.reduce((s, g) => s + g.savedCents, 0);
-
   el.innerHTML = data.goals.map(g => {
     const pct    = g.targetCents > 0 ? Math.min(Math.round(g.savedCents / g.targetCents * 100), 100) : 0;
     const remain = Math.max(0, g.targetCents - g.savedCents);
+    const months = g.deadline ? monthsUntil(g.deadline) : 0;
+    const monthly = (months > 0 && remain > 0) ? Math.ceil(remain / months) : 0;
+    const deadlineLabel = g.deadline
+      ? new Date(g.deadline + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+      : '';
+
     return `<div class="goal-item">
       <div class="goal-top">
-        <div>
-          <div class="goal-name">${g.label}</div>
-          <div class="goal-sub">${fmt(g.savedCents)} / ${fmt(g.targetCents)}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-size:24px;">${g.icon ?? '🎯'}</div>
+          <div>
+            <div class="goal-name">${g.label}</div>
+            <div class="goal-sub">${fmt(g.savedCents)} / ${fmt(g.targetCents)} — ${pct}%</div>
+          </div>
         </div>
-        <button class="goal-del" onclick="deleteGoalUI('${g.id}')">✕</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button onclick="updateSavedUI('${g.id}')" style="background:var(--teal-light);color:var(--teal);border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">+ Épargne</button>
+          <button class="goal-del" onclick="deleteGoalUI('${g.id}')">✕</button>
+        </div>
       </div>
-      <div class="track"><div class="fill" style="width:${pct}%;background:var(--teal)"></div></div>
-      ${pct >= 100
-        ? `<div class="goal-eta" style="color:var(--green)">✓ Objectif atteint !</div>`
-        : remain > 0 ? `<div class="goal-eta">Reste ${fmt(remain)}</div>` : ''}
+      <div class="track" style="margin:8px 0 4px;"><div class="fill" style="width:${pct}%;background:var(--teal)"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);">
+        ${pct >= 100
+          ? `<span style="color:var(--green);font-weight:600;">✓ Objectif atteint !</span>`
+          : `<span>Reste ${fmt(remain)}</span>`}
+        ${monthly > 0 ? `<span>${fmt(monthly)}/mois jusqu'en ${deadlineLabel}</span>` : deadlineLabel ? `<span>Échéance : ${deadlineLabel}</span>` : ''}
+      </div>
     </div>`;
   }).join('');
 }

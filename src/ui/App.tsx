@@ -8,6 +8,7 @@ import { StatsPage }     from './pages/StatsPage';
 import { AnalysePage }   from './pages/AnalysePage';
 import { RecsPage }      from './pages/RecsPage';
 import { SyncPage }      from './pages/SyncPage';
+import { SettingsPage }  from './pages/SettingsPage';
 import { BottomNav }     from './components/BottomNav';
 import { AppHeader }     from './components/AppHeader';
 
@@ -27,7 +28,8 @@ export function App() {
         {route === 'stats'   && <StatsPage />}
         {route === 'recs'    && <RecsPage />}
         {route === 'analyse' && <AnalysePage />}
-        {route === 'sync'    && <SyncPage />}
+        {route === 'sync'     && <SyncPage />}
+        {route === 'settings' && <SettingsPage />}
       </main>
       <BottomNav />
       {/* Modal édition transaction (injecté par txModal.ts) */}

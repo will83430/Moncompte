@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useSignal } from '../hooks/useSignal';
-import { appData, currentAccountId, currentViewMonth, currentViewMode } from '../../store';
+import { appData, currentAccountId, currentViewMonth, currentViewMode, navigate } from '../../store';
 import { getBankBalance, getProjectedBalance } from '../../core/service';
 import { fmt, fmtAbs, fmtCompact } from '../format';
 import type { AccountId, MonthKey } from '../../core/types';
@@ -68,7 +68,10 @@ export function AppHeader() {
     <div class="header">
       <div class="hdr-top">
         <div class="brand">Mon<span>Compte</span></div>
-        <div class="hdr-date">{today}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="hdr-date">{today}</div>
+          <button onClick={() => navigate('settings')} style="background:none;border:none;font-size:20px;cursor:pointer;padding:2px 4px;border-radius:8px;color:var(--text2);" title="Paramètres">⚙️</button>
+        </div>
       </div>
 
       <div class="account-switcher">
