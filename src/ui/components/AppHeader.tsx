@@ -43,14 +43,20 @@ export function AppHeader() {
       .reduce((s, t) => s + (t.kind === 'income' ? t.amountCents : -t.amountCents), 0);
     mainBal = mode === 'reel' ? (bank ?? cumBal) : (getProjectedBalance(data, month, accountId) ?? cumBal);
   } else if (account.type === 'savings') {
-    const bank     = getBankBalance(data, month, accountId);
-    const realTxs  = data.txs.filter(t => t.accountId === accountId && !t.planned);
-    const allTxs   = data.txs.filter(t => t.accountId === accountId);
-    const txsToUse = mode === 'previsionnel' ? allTxs : realTxs;
-    const sInc = txsToUse.filter(t => t.kind === 'income' || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
-    const sExp = txsToUse.filter(t => t.kind === 'expense' || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
-    const cumBal = sInc - sExp;
-    mainBal = mode === 'reel' ? (bank !== null ? bank : cumBal) : cumBal;
+    const bank    = getBankBalance(data, month, accountId);
+    const realTxs = data.txs.filter(t => t.accountId === accountId && !t.planned);
+    const rInc    = realTxs.filter(t => t.kind === 'income' || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
+    const rExp    = realTxs.filter(t => t.kind === 'expense' || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
+    const reelBal = bank !== null ? bank : (rInc - rExp);
+    if (mode === 'reel') {
+      mainBal = reelBal;
+    } else {
+      // Prévisionnel = solde réel + transactions planifiées futures
+      const plannedTxs = data.txs.filter(t => t.accountId === accountId && t.planned);
+      const pInc = plannedTxs.filter(t => t.kind === 'income' || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
+      const pExp = plannedTxs.filter(t => t.kind === 'expense' || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
+      mainBal = reelBal + pInc - pExp;
+    }
   } else {
     const realTxs  = data.txs.filter(t => t.accountId === accountId && !t.planned);
     const txsToUse = mode === 'previsionnel' ? data.txs.filter(t => t.accountId === accountId) : realTxs;

@@ -5,13 +5,17 @@
 import { h, render } from 'preact';
 import { App } from './ui/App';
 import './main.css';
-import { appData, setAppData } from './store';
+import { appData, setAppData, effect } from './store';
+import { updateWidget } from './ui/app';
 import { exportJSON, exportCSV, importJSON, restoreFromFilesystem } from './services/backup';
 import { addGoalUI, deleteGoalUI, updateSavedUI, toggleGoalForm } from './ui/analyse';
 import { getSyncUrl, saveSyncUrl, getSyncToken, saveSyncToken, fetchFromPc, pushToPc } from './services/sync';
 import { toast } from './ui/toast';
 
 render(<App />, document.getElementById('app')!);
+
+// Met à jour le widget Android à chaque changement de données
+effect(() => { if (appData.value) updateWidget(appData.value); }, [appData]);
 
 // ── Fonctions globales pour onclick HTML (Analyse page) ─────────
 

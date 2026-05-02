@@ -33,7 +33,7 @@ export async function setState(next: AppData): Promise<void> {
   updateWidget(next);
 }
 
-function updateWidget(data: AppData): void {
+export function updateWidget(data: AppData): void {
   try {
     const cap = (window as any).Capacitor;
     if (!cap?.isNativePlatform?.()) return;
@@ -67,7 +67,7 @@ function updateWidget(data: AppData): void {
     // Prévision fin de mois : on convertit les planifiées en confirmées pour le calcul
     const txsAvecPlanif = data.txs.map(t => t.planned ? { ...t, planned: false } : t);
     const prevBal = anchor ? computeBalance(month as any, anchor, txsAvecPlanif) : null;
-    const bankLabel = prevBal !== null ? `Prévision\u00a0: ${prevBal >= 0 ? '+' : ''}${fmtW(prevBal)}` : '';
+    const prevBalStr = prevBal !== null ? (prevBal >= 0 ? '+' : '') + fmtW(prevBal) : '—';
 
     // Budget restant
     const budget = data.budget ?? 0;
@@ -79,12 +79,13 @@ function updateWidget(data: AppData): void {
     plugin.updateWidget({
       month:       label.charAt(0).toUpperCase() + label.slice(1),
       balance:     sign + fmtW(displayBal),
-      bankBalance: bankLabel,
+      prevBalance: prevBalStr,
       income:      fmtW(inc),
       expenses:    fmtW(exp),
       budgetLabel,
       budgetPct,
-      negative:    displayBal < 0,
+      negative:     displayBal < 0,
+      prevNegative: prevBal !== null && prevBal < 0,
     });
   } catch { /* widget non dispo */ }
 }
