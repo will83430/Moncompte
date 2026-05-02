@@ -82,8 +82,10 @@ export interface CustomCategory {
 export interface Goal {
   id:          string;
   label:       string;
+  icon:        string;
   targetCents: number;
   savedCents:  number;
+  deadline?:   string; // ISO date YYYY-MM-DD
 }
 
 // ── Blob de persistance unifié ────────────────────────────────

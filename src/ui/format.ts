@@ -54,7 +54,7 @@ export function centsToInput(cents: number): string {
 
 /** String saisie utilisateur → centimes (supporte virgule et point) */
 export function inputToCents(value: string): number {
-  const n = parseFloat(value.replace(',', '.'));
+  const n = parseFloat(value.replace(/\s/g, '').replace(',', '.'));
   if (isNaN(n) || n < 0) return 0;
   return Math.round(n * 100);
 }

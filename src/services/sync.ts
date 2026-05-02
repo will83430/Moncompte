@@ -28,6 +28,35 @@ function authHeaders(token: string): Record<string, string> {
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
+// ── Sync automatique (fire-and-forget, debounce 5s) ───────────
+
+let _autoSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function scheduleAutoSync(data: AppData): void {
+  const url   = getSyncUrl();
+  const token = getSyncToken();
+  if (!url || !token) return; // sync non configurée, on ignore
+
+  if (_autoSyncTimer) clearTimeout(_autoSyncTimer);
+  _autoSyncTimer = setTimeout(() => _doAutoSync(url, token, data), 5000);
+}
+
+async function _doAutoSync(url: string, token: string, data: AppData): Promise<void> {
+  try {
+    await pushToPc(url, token, data);
+    _setSyncIndicator('✓ Sync auto');
+  } catch {
+    _setSyncIndicator('⚠ Sync auto échouée');
+  }
+}
+
+function _setSyncIndicator(msg: string): void {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.textContent = msg;
+  setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 3000);
+}
+
 /** Télécharge les données depuis le PC et les retourne parsées */
 export async function fetchFromPc(baseUrl: string, token: string): Promise<AppData> {
   const url = baseUrl.trim().replace(/\/$/, '');
@@ -43,10 +72,12 @@ export async function fetchFromPc(baseUrl: string, token: string): Promise<AppDa
 /** Envoie les données du téléphone vers le PC */
 export async function pushToPc(baseUrl: string, token: string, data: AppData): Promise<void> {
   const url = baseUrl.trim().replace(/\/$/, '');
+  // Nettoie les champs résiduels avant envoi (exported, etc.)
+  const { exported: _, ...clean } = data as any;
   const res = await fetch(`${url}/data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-    body: JSON.stringify(data),
+    body: JSON.stringify(clean),
   });
   if (res.status === 401) throw new Error('Token invalide');
   if (!res.ok) throw new Error(`Serveur: ${res.status} ${res.statusText}`);

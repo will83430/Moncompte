@@ -8,29 +8,32 @@ import { AppData, Account, CustomCategory } from '../core/types';
 import { Router } from './router';
 import { PinUI } from './pin';
 import { scheduleAutoBackup, restoreFromFilesystem } from '../services/backup';
-import { scheduleRecurringReminder } from '../services/notifications';
+import { scheduleAutoSync } from '../services/sync';
 import { computeBalance } from '../core/balance';
 
 // ── État global réactif ───────────────────────────────────────
 // Un seul objet mutable, toutes les mutations passent par setState()
+// En v5 : délègue au store réactif (signals)
+
+import { appData as _appDataSignal, setAppData as _setAppData } from '../store';
 
 let _state: AppData | null = null;
 
 export function getState(): AppData {
+  // Priorité au signal v5, fallback sur _state local
+  const fromSignal = _appDataSignal.value;
+  if (fromSignal) return fromSignal;
   if (!_state) throw new Error('App non initialisée');
   return _state;
 }
 
 export async function setState(next: AppData): Promise<void> {
   _state = next;
-  await Store.save(next);
-  scheduleAutoBackup(next);
+  await _setAppData(next);
   updateWidget(next);
-  Router.refresh(next);
-  scheduleRecurringReminder(next, 'cc').catch(() => {}); // best-effort, pas bloquant
 }
 
-function updateWidget(data: AppData): void {
+export function updateWidget(data: AppData): void {
   try {
     const cap = (window as any).Capacitor;
     if (!cap?.isNativePlatform?.()) return;
@@ -61,11 +64,28 @@ function updateWidget(data: AppData): void {
     const [y, m] = month.split('-').map(Number) as [number, number];
     const label = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
+    // Prévision fin de mois : on convertit les planifiées en confirmées pour le calcul
+    const txsAvecPlanif = data.txs.map(t => t.planned ? { ...t, planned: false } : t);
+    const prevBal = anchor ? computeBalance(month as any, anchor, txsAvecPlanif) : null;
+    const prevBalStr = prevBal !== null ? (prevBal >= 0 ? '+' : '') + fmtW(prevBal) : '—';
+
+    // Budget restant
+    const budget = data.budget ?? 0;
+    const budgetPct = budget > 0 ? Math.round((exp / budget) * 100) : 0;
+    const budgetLabel = budget > 0
+      ? `${fmtW(Math.max(0, budget - exp))} restant`
+      : '';
+
     plugin.updateWidget({
-      month:    label.charAt(0).toUpperCase() + label.slice(1),
-      balance:  sign + fmtW(displayBal),
-      income:   fmtW(inc),
-      expenses: fmtW(exp),
+      month:       label.charAt(0).toUpperCase() + label.slice(1),
+      balance:     sign + fmtW(displayBal),
+      prevBalance: prevBalStr,
+      income:      fmtW(inc),
+      expenses:    fmtW(exp),
+      budgetLabel,
+      budgetPct,
+      negative:     displayBal < 0,
+      prevNegative: prevBal !== null && prevBal < 0,
     });
   } catch { /* widget non dispo */ }
 }

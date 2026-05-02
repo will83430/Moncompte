@@ -18,14 +18,19 @@
   },
   "homepage": "https://github.com/will83430/Moncompte#readme",
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor/android": "^8.3.0",
+    "@capacitor/barcode-scanner": "^3.0.2",
     "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/local-notifications": "^8.0.2",
+    "preact": "^10.29.1",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.4",
+    "tailwindcss": "^4.2.4",
     "typescript": "^6.0.2",
     "vite": "^8.0.3",
     "vitest": "^4.1.2"

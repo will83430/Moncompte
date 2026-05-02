@@ -111,14 +111,31 @@ function _syncGetToken(): string {
 };
 
 (window as any).syncScanQr = async () => {
-  // Sur Android, on ouvre un prompt simple (pas de scanner natif sans plugin dédié)
-  const current = getSyncUrl();
-  const url = window.prompt('Adresse du serveur PC (ex: http://192.168.1.x:7789)', current || 'http://');
-  if (!url) return;
-  saveSyncUrl(url);
-  const input = document.getElementById('sync-url') as HTMLInputElement | null;
-  if (input) input.value = url;
-  _syncStatus('Adresse enregistrée');
+  const { toast } = await import('./ui/toast');
+  try {
+    const { CapacitorBarcodeScanner, CapacitorBarcodeScannerTypeHint } = await import('@capacitor/barcode-scanner');
+    const result = await CapacitorBarcodeScanner.scanBarcode({
+      hint: CapacitorBarcodeScannerTypeHint.QR_CODE,
+    });
+    const scanned = result.ScanResult?.trim();
+    if (!scanned) return;
+
+    // Le QR encode "http://ip:port" — on extrait url et token si présents
+    // Format attendu : http://ip:port (url seule, le token est sur la page /qr)
+    const urlInput   = document.getElementById('sync-url')   as HTMLInputElement | null;
+    if (urlInput) { urlInput.value = scanned; saveSyncUrl(scanned); }
+    _syncStatus('QR scanné — entre le token affiché sur la page /qr du PC');
+    toast('URL enregistrée — entre le token manuellement');
+  } catch (e: any) {
+    // Fallback prompt si pas sur Android natif
+    const current = getSyncUrl();
+    const url = window.prompt('Adresse du serveur PC (ex: http://192.168.1.x:7789)', current || 'http://');
+    if (!url) return;
+    saveSyncUrl(url);
+    const input = document.getElementById('sync-url') as HTMLInputElement | null;
+    if (input) input.value = url;
+    _syncStatus('Adresse enregistrée');
+  }
 };
 
 // Restaurer l'URL de sync sauvegardée au démarrage

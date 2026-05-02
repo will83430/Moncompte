@@ -3,6 +3,6 @@
   "appName": "MonCarnetCompte",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "http"
   }
 }

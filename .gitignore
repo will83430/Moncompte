@@ -1,5 +1,8 @@
 node_modules/
 android/
+www/assets/
+www/index.html
+www/snapshots/
 import_history.json
 www/import_history.json
 www/moncarnetcompte_backup.json

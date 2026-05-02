@@ -62,7 +62,7 @@ export const SYSTEM_CATS: CatDef[] = [
   {id:'frais_bancaires', group:'Finances',     label:'Frais bancaires',              icon:'🏧', color:'#6b7280'},
   {id:'don',             group:'Finances',     label:'Dons / Cadeaux',               icon:'🎁', color:'#db2777'},
   {id:'retrait',         group:'Finances',     label:'Retrait espèces',              icon:'💵', color:'#374151'},
-  {id:'autre_dep',       group:'Divers',       label:'Autre dépense',                icon:'📌', color:'#9ca3af'},
+  {id:'autre_dep',       group:'Autres',       label:'Autre dépense',                icon:'📌', color:'#9ca3af'},
   // Revenus
   {id:'salaire',         group:'Revenus pro',  label:'Salaire / Traitement',         icon:'💼', color:'#059669'},
   {id:'prime',           group:'Revenus pro',  label:'Prime / Bonus',                icon:'⭐', color:'#10b981'},
