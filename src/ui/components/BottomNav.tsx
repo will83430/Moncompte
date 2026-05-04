@@ -8,6 +8,7 @@ const TABS = [
   { id: 'stats',   icon: '📊', label: 'Stats'       },
   { id: 'recs',    icon: '🔄', label: 'Récurrents'  },
   { id: 'analyse', icon: '💡', label: 'Analyse'     },
+  { id: 'search',  icon: '🔍', label: 'Recherche'   },
 ] as const;
 
 export function BottomNav() {

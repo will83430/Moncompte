@@ -1,4 +1,5 @@
 import { h } from 'preact';
+import { lazy, Suspense } from 'preact/compat';
 import { useSignal } from './hooks/useSignal';
 import { currentRoute, appData, isLocked } from '../store';
 import { PinPage }       from './pages/PinPage';
@@ -11,6 +12,8 @@ import { SyncPage }      from './pages/SyncPage';
 import { SettingsPage }  from './pages/SettingsPage';
 import { BottomNav }     from './components/BottomNav';
 import { AppHeader }     from './components/AppHeader';
+
+const SearchPage = lazy(() => import('./pages/SearchPage').then(m => ({ default: m.SearchPage })));
 
 export function App() {
   const locked = useSignal(isLocked);
@@ -30,6 +33,7 @@ export function App() {
         {route === 'analyse' && <AnalysePage />}
         {route === 'sync'     && <SyncPage />}
         {route === 'settings' && <SettingsPage />}
+        {route === 'search'   && <Suspense fallback={null}><SearchPage /></Suspense>}
       </main>
       <BottomNav />
       {/* Modal édition transaction (injecté par txModal.ts) */}

@@ -353,6 +353,15 @@ function escHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Scroll automatique quand le clavier Android apparaît
+document.addEventListener('focusin', e => {
+  const target = e.target as HTMLElement;
+  if ((target.tagName === 'INPUT' || target.tagName === 'SELECT')
+      && document.getElementById('tx-modal')?.classList.contains('open')) {
+    setTimeout(() => target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150);
+  }
+});
+
 // Exposer globalement
 (window as any).openTxModal          = openTxModal;
 (window as any).closeTxModal         = closeTxModal;

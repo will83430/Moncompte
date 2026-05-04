@@ -290,7 +290,7 @@ optgroup{background:#f9f9f9;color:var(--text2);font-style:normal;}
 /* ─── MODAL ─── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s;}
 .modal-overlay.open{opacity:1;pointer-events:all;}
-.modal-box{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:430px;padding:24px 20px 32px;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:0 -4px 24px rgba(0,0,0,0.12);}
+.modal-box{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:430px;padding:24px 20px 32px;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:0 -4px 24px rgba(0,0,0,0.12);overflow-y:auto;max-height:90dvh;}
 .modal-overlay.open .modal-box{transform:translateY(0);}
 .modal-handle{width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px;}
 .modal-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:20px;text-align:center;}
@@ -316,6 +316,15 @@ optgroup{background:#f9f9f9;color:var(--text2);font-style:normal;}
 /* ─── TOAST ─── */
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--text);color:#fff;font-size:13px;font-weight:500;padding:11px 20px;border-radius:10px;box-shadow:var(--shadow-md);opacity:0;transition:all .25s;z-index:300;white-space:nowrap;pointer-events:none;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ─── RECHERCHE ─── */
+.srch-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+.srch-row{display:flex;flex-wrap:wrap;gap:6px;}
+.srch-chip{background:var(--bg);border:1.5px solid var(--border);border-radius:20px;padding:5px 11px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap;}
+.srch-chip:hover{border-color:var(--teal);color:var(--teal);}
+.srch-chip-on{background:var(--teal-light);border-color:var(--teal);color:var(--teal);font-weight:600;}
+.srch-entry{display:flex;align-items:center;gap:6px;margin-bottom:7px;}
+#search-results{padding:0 0 90px;}
 
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar{width:4px;}
