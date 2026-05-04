@@ -6,6 +6,7 @@
 import { AppData, AccountId, MonthKey } from '../core/types';
 import { getCatDef } from '../core/categories';
 import { getBankBalance } from '../core/service';
+import { computeBalance, prevMonth } from '../core/balance';
 import { fmt } from './format';
 
 let _barPeriod = 12;
@@ -146,6 +147,11 @@ export function renderStats(
         </div>
       </div>
       <div id="balance-chart">${buildBalanceChart(data, accountId, month, _balPeriod)}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Solde jour par jour — ${monthLabel(month)}</div>
+      <div id="daily-chart">${buildDailyBalanceChart(data, accountId, month)}</div>
     </div>
 
   `;
@@ -433,6 +439,104 @@ export function setStatsRefreshCallback(cb: () => void) { _refreshCb = cb; }
 
 (window as any).setBarPeriod = setBarPeriod;
 (window as any).setBalPeriod = setBalPeriod;
+
+// ── Graphique solde jour par jour ────────────────────────────
+
+function buildDailyBalanceChart(
+  data:      AppData,
+  accountId: AccountId,
+  month:     MonthKey,
+): string {
+  const [y, m] = month.split('-').map(Number) as [number, number];
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const todayStr    = new Date().toISOString().slice(0, 10);
+  const isCurrentMonth = month === new Date().toISOString().slice(0, 7);
+
+  const anchor  = data.anchors.find(a => a.accountId === accountId);
+  const prevMk  = prevMonth(month);
+  const nonPlanned = data.txs.filter(t => t.accountId === accountId && !t.planned);
+
+  let startBal = 0;
+  if (anchor) {
+    const prev = computeBalance(prevMk, anchor, nonPlanned);
+    if (prev !== null) startBal = prev;
+  }
+
+  const monthTxs = nonPlanned
+    .filter(t => t.date.startsWith(month))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const lastVisibleDay = isCurrentMonth ? parseInt(todayStr.split('-')[2]!) : daysInMonth;
+
+  const days: { day: number; balance: number }[] = [];
+  let running = startBal;
+  for (let d = 1; d <= lastVisibleDay; d++) {
+    const dayStr = `${month}-${String(d).padStart(2, '0')}`;
+    for (const tx of monthTxs.filter(t => t.date === dayStr)) {
+      running += (tx.kind === 'income' || tx.kind === 'transfer_in') ? tx.amountCents : -tx.amountCents;
+    }
+    days.push({ day: d, balance: running });
+  }
+
+  if (!days.length) return '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">Pas de données</div>';
+
+  const balances = days.map(d => d.balance);
+  const minVal   = Math.min(...balances);
+  const maxVal   = Math.max(...balances);
+  const range    = maxVal - minVal || 1;
+
+  const W=320, H=160, ml=40, mr=8, mt=12, mb=20;
+  const ch = H - mt - mb;
+  const f2 = (v: number) => +v.toFixed(2);
+  const xPos = (day: number) => ml + (day - 1) / Math.max(lastVisibleDay - 1, 1) * (W - ml - mr);
+  const yPos = (v: number)   => f2(mt + ch - ((v - minVal) / range) * ch);
+  // Brider zy dans les limites du chart (évite le débordement quand 0 < minVal)
+  const zy = Math.min(mt + ch, Math.max(mt, f2(yPos(0))));
+
+  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="overflow:hidden;display:block;">`;
+
+  // clipPath pour aire et ligne
+  s += `<defs><clipPath id="daily-clip"><rect x="${ml}" y="${mt}" width="${W-ml-mr}" height="${ch}"/></clipPath></defs>`;
+
+  // Grille 3 lignes
+  const gridVals = [minVal, (minVal + maxVal) / 2, maxVal];
+  gridVals.forEach(v => {
+    const gy = f2(yPos(v));
+    const isZ = Math.abs(v) < range * 0.02;
+    s += `<line x1="${ml}" y1="${gy}" x2="${W-mr}" y2="${gy}" stroke="${isZ ? '#9ca3af' : '#e4e6ea'}" stroke-width="${isZ ? 1.5 : 1}" ${isZ ? 'stroke-dasharray="4,3"' : ''} pointer-events="none"/>`;
+    s += `<text x="${ml-4}" y="${f2(gy+3.5)}" text-anchor="end" font-size="8" fill="#9ca3af">${chartLbl(v/100)}</text>`;
+  });
+
+  // Aire colorée + ligne (clippées dans le chart)
+  if (days.length > 1) {
+    const pts = days.map(d => `${f2(xPos(d.day))},${yPos(d.balance)}`);
+    const fx = f2(xPos(days[0]!.day)), lx = f2(xPos(days[days.length-1]!.day));
+    const areaPath = `M${fx},${zy} L${pts.join(' L')} L${lx},${zy} Z`;
+    const allPos = minVal >= 0;
+    const allNeg = maxVal <= 0;
+    const fillColor = allPos ? '#10b981' : allNeg ? '#ef4444' : '#6366f1';
+    s += `<path d="${areaPath}" fill="${fillColor}" opacity="0.15" clip-path="url(#daily-clip)"/>`;
+    s += `<polyline points="${pts.join(' ')}" fill="none" stroke="#00857a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" clip-path="url(#daily-clip)"/>`;
+
+    if (isCurrentMonth) {
+      const last = days[days.length - 1]!;
+      s += `<circle cx="${f2(xPos(last.day))}" cy="${yPos(last.balance)}" r="4" fill="#00857a" stroke="#fff" stroke-width="1.5"/>`;
+    }
+  }
+
+  // Labels jours : 1, 5, 10, 15, 20, 25, dernier
+  const labelDays = [1, 5, 10, 15, 20, 25, lastVisibleDay];
+  for (const d of [...new Set(labelDays)]) {
+    if (d > lastVisibleDay) continue;
+    s += `<text x="${f2(xPos(d))}" y="${H-4}" text-anchor="middle" font-size="9" fill="#9ca3af">${d}</text>`;
+  }
+
+  s += '</svg>';
+  if (!anchor) {
+    s += '<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px;font-style:italic;">Définissez un solde réel dans Analyse pour les valeurs exactes</div>';
+  }
+  return s;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 

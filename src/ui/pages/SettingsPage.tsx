@@ -6,8 +6,10 @@ import { addAccount, updateAccount, deleteAccountData } from '../../core/service
 import { parseCSV, markDuplicates, importCsvRows } from '../../services/csv-import';
 import { getCatDef } from '../../core/categories';
 import { isBioEnabled, isBioAvailable, disableBio } from '../../services/biometric';
+import { exportPDF } from '../../services/pdf-export';
+import { currentMonthKey } from '../../core/balance';
 import { toast } from '../toast';
-import type { Account, AccountId, AccountType } from '../../core/types';
+import type { Account, AccountId, AccountType, MonthKey } from '../../core/types';
 import type { CsvRow } from '../../services/csv-import';
 
 const TYPE_LABELS: Record<AccountType, string> = {
@@ -27,10 +29,12 @@ function genId(): AccountId {
 }
 
 export function SettingsPage() {
-  const data = useSignal(appData)!;
+  const data      = useSignal(appData)!;
+  const accountId = useSignal(currentAccountId) as AccountId;
   const [editing,    setEditing]    = useState<AccountId | 'new' | null>(null);
   const [bioEnabled, setBioEnabled] = useState(isBioEnabled());
   const [bioAvail,   setBioAvail]   = useState(false);
+  const [pdfMonth,   setPdfMonth]   = useState<MonthKey>(currentMonthKey());
 
   useEffect(() => { isBioAvailable().then(setBioAvail); }, []);
 
@@ -118,6 +122,38 @@ export function SettingsPage() {
           <div class="card-title">Import relevé bancaire</div>
         </div>
         <CsvImport />
+      </div>
+
+      {/* ── Export PDF ── */}
+      <div class="card" style="margin-top:20px;padding:14px;">
+        <div class="card-title">📄 Export relevé PDF</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="modal-field" style="margin:0;flex:1;">
+            <label>Compte</label>
+            <select
+              value={accountId}
+              onChange={e => { /* accountId est géré globalement */ }}
+              style="width:100%"
+            >
+              {data.accounts.map(a => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+            </select>
+          </div>
+          <div class="modal-field" style="margin:0;flex:1;">
+            <label>Mois</label>
+            <input
+              type="month"
+              value={pdfMonth}
+              onInput={e => setPdfMonth((e.target as HTMLInputElement).value as MonthKey)}
+            />
+          </div>
+        </div>
+        <button
+          class="modal-btn-save"
+          style="width:100%;margin-top:12px;"
+          onClick={() => exportPDF(data, accountId, pdfMonth)}
+        >
+          Générer le relevé PDF
+        </button>
       </div>
 
     </div>

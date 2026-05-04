@@ -1,10 +1,13 @@
 import { h } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { useSignal } from '../hooks/useSignal';
 import { appData, currentAccountId } from '../../store';
 import { renderAnalyse } from '../analyse';
 import { currentMonthKey } from '../../core/balance';
-import type { MonthKey, AccountId } from '../../core/types';
+import { detectSubscriptions } from '../../services/subscriptions';
+import { getCatDef } from '../../core/categories';
+import { fmt } from '../format';
+import type { MonthKey, AccountId, AppData } from '../../core/types';
 
 const ANALYSE_TEMPLATE = `
   <div class="card">
@@ -172,6 +175,134 @@ function monthLabel(month: MonthKey): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+// ── Détection abonnements ─────────────────────────────────────
+
+function SubscriptionsSection({ data, accountId }: { data: AppData; accountId: AccountId }) {
+  const subs = useMemo(() => detectSubscriptions(data, accountId), [data, accountId]);
+
+  const totalMonthly = subs.reduce((s, sub) => s + sub.amountCents, 0);
+  const totalAnnual  = subs.reduce((s, sub) => s + sub.annualCost, 0);
+
+  return (
+    <div class="card" style="padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="card-title" style="margin:0;">🔁 Abonnements détectés</div>
+        {subs.length > 0 && (
+          <div style="font-size:11px;color:var(--text2);text-align:right;">
+            <div style="font-weight:600;">{fmt(totalMonthly)}/mois</div>
+            <div>{fmt(totalAnnual)}/an</div>
+          </div>
+        )}
+      </div>
+
+      {subs.length === 0 ? (
+        <div style="color:var(--text3);font-size:13px;text-align:center;padding:12px 0;">
+          Aucun abonnement régulier détecté<br/>
+          <span style="font-size:11px;">(nécessite au moins 2 mois de données)</span>
+        </div>
+      ) : (
+        subs.map((sub, i) => {
+          const cat = getCatDef(sub.cat, data.customCats);
+          return (
+            <div key={i} style={`display:flex;align-items:center;gap:10px;padding:9px 0;${i > 0 ? 'border-top:1px solid var(--border);' : ''}`}>
+              <div style={`font-size:18px;width:36px;height:36px;border-radius:10px;background:${cat.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;`}>
+                {cat.icon}
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{sub.name}</div>
+                <div style="font-size:11px;color:var(--text3);">
+                  {sub.monthCount} mois · prochain ≈ {sub.nextDate.slice(0, 7)}
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:14px;font-weight:700;">{fmt(sub.amountCents)}/mois</div>
+                <div style="font-size:11px;color:var(--text3);">{fmt(sub.annualCost)}/an</div>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// ── Simulation crédit ─────────────────────────────────────────
+
+function CreditSimulator() {
+  const [capital,  setCapital]  = useState('');
+  const [taux,     setTaux]     = useState('');
+  const [duree,    setDuree]    = useState('');
+  const [result,   setResult]   = useState<null | { mensualite: number; totalInteret: number; totalCout: number; }>(null);
+
+  const simulate = () => {
+    const P = parseFloat(capital.replace(',', '.'));
+    const r = parseFloat(taux.replace(',', '.')) / 100 / 12;
+    const n = parseInt(duree);
+    if (!P || !r || !n || P <= 0 || r <= 0 || n <= 0) return;
+
+    const mensualite   = P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    const totalCout    = mensualite * n;
+    const totalInteret = totalCout - P;
+    setResult({ mensualite, totalInteret, totalCout });
+  };
+
+  const fmtE = (v: number) => (v / 1).toFixed(2).replace('.', ',') + ' €';
+
+  return (
+    <div class="card" style="padding:14px;">
+      <div class="card-title">💳 Simulation crédit</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div class="modal-field" style="margin:0;">
+          <label>Capital (€)</label>
+          <input type="text" inputMode="decimal" placeholder="ex: 15000"
+            value={capital} onInput={e => setCapital((e.target as HTMLInputElement).value)} />
+        </div>
+        <div class="modal-field" style="margin:0;">
+          <label>Taux annuel (%)</label>
+          <input type="text" inputMode="decimal" placeholder="ex: 4,5"
+            value={taux} onInput={e => setTaux((e.target as HTMLInputElement).value)} />
+        </div>
+      </div>
+
+      <div class="modal-field" style="margin-bottom:12px;">
+        <label>Durée (mois)</label>
+        <input type="text" inputMode="numeric" placeholder="ex: 60 (= 5 ans)"
+          value={duree} onInput={e => setDuree((e.target as HTMLInputElement).value)} />
+      </div>
+
+      <button class="modal-btn-save" style="width:100%;" onClick={simulate}>
+        Calculer
+      </button>
+
+      {result && (
+        <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div style="text-align:center;background:var(--teal-light);border-radius:10px;padding:10px 6px;">
+              <div style="font-size:16px;font-weight:700;color:var(--teal);">{fmtE(result.mensualite)}</div>
+              <div style="font-size:10px;color:var(--text2);margin-top:2px;">Mensualité</div>
+            </div>
+            <div style="text-align:center;background:#fff0f0;border-radius:10px;padding:10px 6px;">
+              <div style="font-size:16px;font-weight:700;color:#dc2626;">{fmtE(result.totalInteret)}</div>
+              <div style="font-size:10px;color:var(--text2);margin-top:2px;">Intérêts</div>
+            </div>
+            <div style="text-align:center;background:var(--bg);border-radius:10px;padding:10px 6px;">
+              <div style="font-size:16px;font-weight:700;">{fmtE(result.totalCout)}</div>
+              <div style="font-size:10px;color:var(--text2);margin-top:2px;">Coût total</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;background:var(--bg);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text2);">
+            Sur <strong>{duree} mois</strong> ({Math.round(parseInt(duree)/12*10)/10} ans),
+            vous remboursez <strong>{fmtE(parseFloat(capital.replace(',','.')))}</strong> + <strong style="color:#dc2626;">{fmtE(result.totalInteret)}</strong> d'intérêts.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page principale ───────────────────────────────────────────
+
 export function AnalysePage() {
   const data      = useSignal(appData)!;
   const accountId = useSignal(currentAccountId) as AccountId;
@@ -200,7 +331,13 @@ export function AnalysePage() {
         <button class={`mode-btn${mode === 'reel' ? ' mode-on' : ''}`} onClick={() => setMode('reel')}>Réel</button>
         <button class={`mode-btn${mode === 'previsionnel' ? ' mode-on' : ''}`} onClick={() => setMode('previsionnel')}>Prévisionnel</button>
       </div>
+
+      {/* Sections existantes (impératives) */}
       <div id="analyse-body" ref={bodyRef}></div>
+
+      {/* Sections V7 — en bas */}
+      <CreditSimulator />
+      <SubscriptionsSection data={data} accountId={accountId} />
     </div>
   );
 }
