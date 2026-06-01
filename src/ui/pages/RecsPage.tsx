@@ -15,11 +15,13 @@ export function RecsPage() {
   const data      = useSignal(appData)!;
   const accountId = useSignal(currentAccountId) as AccountId;
 
-  const [showForm, setShowForm] = useState(false);
-  const [editId,   setEditId]   = useState<RecId | null>(null);
+  const [showForm,    setShowForm]    = useState(false);
+  const [editId,      setEditId]      = useState<RecId | null>(null);
+  const [useNextMonth, setUseNextMonth] = useState(true);
 
-  const targetMonth = nextMonth(currentMonthKey());
-  const nextLabel   = new Date(targetMonth + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const curMonth    = currentMonthKey();
+  const targetMonth = useNextMonth ? nextMonth(curMonth) : curMonth;
+  const targetLabel = new Date(targetMonth + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
   const recs    = data.recs.filter(r => r.accountId === accountId);
   const pending = recs.filter(r =>
@@ -61,12 +63,25 @@ export function RecsPage() {
 
   return (
     <div class="section active" id="sec-rec">
+      <div style="display:flex;gap:6px;padding:0 14px 10px;">
+        <button
+          onClick={() => setUseNextMonth(false)}
+          style={`flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--teal);font-size:13px;cursor:pointer;${!useNextMonth ? 'background:var(--teal);color:#fff;font-weight:600;' : 'background:none;color:var(--teal);'}`}>
+          Ce mois
+        </button>
+        <button
+          onClick={() => setUseNextMonth(true)}
+          style={`flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--teal);font-size:13px;cursor:pointer;${useNextMonth ? 'background:var(--teal);color:#fff;font-weight:600;' : 'background:none;color:var(--teal);'}`}>
+          Mois suivant
+        </button>
+      </div>
+
       {pending.length > 0 && (
         <div class="card" style="background:var(--accent-light,#fff8e6);border:1.5px solid var(--yellow,#f59e0b);margin-bottom:8px;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <div>
               <div style="font-weight:600;font-size:14px;">⏳ {pending.length} récurrente{pending.length > 1 ? 's' : ''} à importer</div>
-              <div style="font-size:12px;color:var(--text2);">Pour {nextLabel}</div>
+              <div style="font-size:12px;color:var(--text2);">Pour {targetLabel}</div>
             </div>
             <button class="modal-btn-save" onClick={generateAll} style="white-space:nowrap;padding:8px 14px;font-size:13px;">Tout importer</button>
           </div>
