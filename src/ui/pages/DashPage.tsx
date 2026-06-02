@@ -124,6 +124,7 @@ export function DashPage() {
                   key={t.id}
                   tx={t}
                   customCats={data.customCats}
+                  accountType={account?.type}
                   onConfirm={confirmTx}
                   onDelete={deleteTx}
                 />
@@ -138,13 +139,17 @@ export function DashPage() {
 
 // ── TxItem ────────────────────────────────────────────────────
 
-function TxItem({ tx, customCats, onConfirm, onDelete }: {
+function TxItem({ tx, customCats, accountType, onConfirm, onDelete }: {
   tx: Transaction,
   customCats: ReturnType<typeof getCatDef>[],
+  accountType?: string,
   onConfirm: (id: TxId) => void,
   onDelete:  (id: TxId) => void,
 }) {
-  const isIncome   = tx.kind === 'income'   || tx.kind === 'transfer_in';
+  // Pour un compte crédit, transfer_in = remboursement = négatif (comme expense)
+  const isIncome   = accountType === 'credit'
+    ? (tx.kind === 'income' || tx.kind === 'transfer_out')
+    : (tx.kind === 'income' || tx.kind === 'transfer_in');
   const isTransfer = tx.kind === 'transfer_out' || tx.kind === 'transfer_in';
   const cat        = getCatDef(tx.cat, customCats as any);
   const icoColor   = cat.color + '22';

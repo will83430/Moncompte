@@ -1,7 +1,8 @@
 import { h } from 'preact';
 import { useSignal } from '../hooks/useSignal';
 import { appData, currentAccountId, currentViewMonth, currentViewMode, navigate } from '../../store';
-import { getBankBalance, getProjectedBalance } from '../../core/service';
+import { getBankBalance, getProjectedBalance, getAnchor } from '../../core/service';
+import { computeCreditBalance } from '../../core/balance';
 import { fmt, fmtAbs, fmtCompact } from '../format';
 import type { AccountId, MonthKey } from '../../core/types';
 
@@ -33,7 +34,8 @@ export function AppHeader() {
   );
   const inc = txs.filter(t => t.kind === 'income'  || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
   const exp = txs.filter(t => t.kind === 'expense' || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
-  const bilan = inc - exp;
+  // Pour le crédit : remboursé − emprunté (logique inversée : rembourser = positif)
+  const bilan = account?.type === 'credit' ? (exp - inc) : (inc - exp);
 
   let mainBal: number;
   if (!account || account.type === 'checking') {
@@ -58,11 +60,24 @@ export function AppHeader() {
       mainBal = reelBal + pInc - pExp;
     }
   } else {
-    const realTxs  = data.txs.filter(t => t.accountId === accountId && !t.planned);
-    const txsToUse = mode === 'previsionnel' ? data.txs.filter(t => t.accountId === accountId) : realTxs;
-    const emprunte  = txsToUse.filter(t => t.kind === 'income'  || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
-    const rembourse = txsToUse.filter(t => t.kind === 'expense' || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
-    mainBal = Math.max(0, emprunte - rembourse);
+    const anchor = getAnchor(data, accountId as AccountId);
+    const creditBal = computeCreditBalance(month, anchor, data.txs);
+    if (creditBal !== null) {
+      if (mode === 'previsionnel') {
+        const planned = data.txs.filter(t => t.accountId === accountId && t.planned && t.date.startsWith(month));
+        const pRem = planned.filter(t => t.kind === 'expense' || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
+        const pEmp = planned.filter(t => t.kind === 'income'  || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
+        mainBal = Math.max(0, creditBal - pRem + pEmp);
+      } else {
+        mainBal = creditBal;
+      }
+    } else {
+      // Fallback sans ancre : cumul total
+      const realTxs = data.txs.filter(t => t.accountId === accountId && !t.planned);
+      const emprunte  = realTxs.filter(t => t.kind === 'income'  || t.kind === 'transfer_out').reduce((s, t) => s + t.amountCents, 0);
+      const rembourse = realTxs.filter(t => t.kind === 'expense' || t.kind === 'transfer_in').reduce((s, t) => s + t.amountCents, 0);
+      mainBal = Math.max(0, emprunte - rembourse);
+    }
   }
 
   const balLabel = account?.type === 'savings' ? (mode === 'reel' ? 'Solde livret'       : 'Solde prévu livret')

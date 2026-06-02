@@ -28,7 +28,7 @@ function buildMirrorTx(source: Transaction, linkedAccount: Account, mirrorId: Tx
     kind,
     cat,
     desc:        source.desc,
-    planned:     true,
+    planned:     source.planned,
     recurring:   source.recurring,
     ...(source.recId ? { recId: source.recId } : {}),
   };

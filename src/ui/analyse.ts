@@ -6,6 +6,7 @@ import { AppData, AccountId, MonthKey } from '../core/types';
 import { setAnchor, getAnchor, getMonthSummary, addGoal, deleteGoal } from '../core/service';
 import { getState, setState } from './app';
 import { Nav } from './router';
+import { currentAccountId, currentViewMonth } from '../store';
 import { toast } from './toast';
 import { fmt, fmtAbs, inputToCents } from './format';
 import { getCatDef } from '../core/categories';
@@ -20,8 +21,8 @@ export async function saveBalRef(): Promise<void> {
   if (cents <= 0) { toast('Montant invalide'); return; }
 
   const state     = getState();
-  const accountId = Nav.accountId;
-  const month     = Nav.month;
+  const accountId = (currentAccountId.value || Nav.accountId) as AccountId;
+  const month     = (currentViewMonth.value  || Nav.month) as MonthKey;
 
   const next = setAnchor(state, accountId, cents, month);
   await setState(next);

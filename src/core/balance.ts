@@ -89,6 +89,58 @@ export function computeBalance(
   return balance;
 }
 
+// ── Bilan mensuel pour compte crédit (logique inversée) ───────
+
+function monthCreditBilan(mk: MonthKey, accountId: string, txs: Transaction[]): number {
+  const monthly = txs.filter(t =>
+    t.accountId === accountId &&
+    t.date.startsWith(mk) &&
+    !t.planned
+  );
+  // Pour un crédit : remboursements réduisent la dette, nouveaux emprunts l'augmentent
+  const rembourse = monthly
+    .filter(t => t.kind === 'expense' || t.kind === 'transfer_in')
+    .reduce((s, t) => s + t.amountCents, 0);
+  const emprunte = monthly
+    .filter(t => t.kind === 'income' || t.kind === 'transfer_out')
+    .reduce((s, t) => s + t.amountCents, 0);
+  return rembourse - emprunte; // positif = dette réduite
+}
+
+/**
+ * Calcule le restant à payer pour un compte crédit à un mois donné.
+ * L'ancre représente le restant à payer connu à la fin d'un mois.
+ */
+export function computeCreditBalance(
+  targetMonth: MonthKey,
+  anchor:      BalanceAnchor | null | undefined,
+  txs:         Transaction[]
+): number | null {
+  if (!anchor) return null;
+
+  const { amountCents, month: anchorMonth, accountId } = anchor;
+
+  if (targetMonth === anchorMonth) return amountCents;
+
+  const anchorN = monthToInt(anchorMonth);
+  const targetN = monthToInt(targetMonth);
+  const step    = targetN > anchorN ? 1 : -1;
+
+  let balance = amountCents;
+
+  if (step > 0) {
+    for (let n = anchorN + 1; n <= targetN; n++) {
+      balance -= monthCreditBilan(intToMonth(n), accountId, txs);
+    }
+  } else {
+    for (let n = anchorN; n > targetN; n--) {
+      balance += monthCreditBilan(intToMonth(n), accountId, txs);
+    }
+  }
+
+  return Math.max(0, balance);
+}
+
 /**
  * Calcule le solde prévu en incluant les transactions planifiées.
  * Utilisé en mode "Prévision".
